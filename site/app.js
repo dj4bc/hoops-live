@@ -2,6 +2,13 @@
    BasketballConnect (Squadi) live-scores API, then filters them to the chosen club. */
 (function () {
   'use strict';
+// BasketballConnect sometimes leaves a game "STARTED" after the scorer forgets to end it.
+// Treat a game that started more than 4 hours ago as finished.
+function gameStatus(st, startTime, m) {
+  if (st === 'ENDED' || (m && (m.matchEnded === true || String(m.resultStatus || '').toUpperCase() === 'FINAL'))) return 'final';
+  if (!st || /POSTPONED|CANCEL|ABANDON/.test(st)) return 'upcoming';
+  return Date.now() - new Date(startTime).getTime() > 4 * 3600e3 ? 'final' : 'live';
+}
 
   const CFG = window.HOOPS_CONFIG;
   const app = document.getElementById('app');
@@ -145,7 +152,7 @@
           start: new Date(m.startTime),
           comp,
           postponed: /POSTPONED|CANCEL|ABANDON/.test(st),
-          status: st === 'ENDED' ? 'final' : (st && !/POSTPONED|CANCEL|ABANDON/.test(st) ? 'live' : 'upcoming'),
+          status: gameStatus(st, m.startTime, m),
           t1, t2,
           s1: m.team1Score, s2: m.team2Score,
           r1: m.team1ResultId, r2: m.team2ResultId,
@@ -714,7 +721,7 @@
       const st = (m.matchStatus || '').toUpperCase();
       games.push({ id: m.id, round: rd.name || '', finals: !!m.isFinals || !!m.finalsAlias, alias: m.finalsAlias || '',
         start: new Date(m.startTime), n1: ((m.team1 && m.team1.name) || '').trim(), n2: ((m.team2 && m.team2.name) || '').trim(),
-        s1: m.team1Score, s2: m.team2Score, status: st === 'ENDED' ? 'final' : (st && !/POSTPONED|CANCEL|ABANDON/.test(st) ? 'live' : 'upcoming'),
+        s1: m.team1Score, s2: m.team2Score, status: gameStatus(st, m.startTime, m),
         venue: ((m.venueCourt || {}).venue || {}).shortName || ((m.venueCourt || {}).venue || {}).name || '', court: (m.venueCourt || {}).name || '' });
     }));
     divCache.set(divId, { at: Date.now(), data: games });
@@ -1504,8 +1511,9 @@
         const t = m[k]; if (!t || !t.name || /^bye$/i.test(t.name.trim())) return;
         const c = clubOf(t.name); if (!c) return;
         const x = out.get(c.slug); x.teams.add(t.id);
-        if (st === 'ENDED') { if (m[r] === 1) x.W++; else if (m[r] === 2) x.L++; }
-        else if (st && !/POSTPONED|CANCEL|ABANDON/.test(st)) x.live++;
+        const gs = gameStatus(st, m.startTime, m);
+        if (gs === 'final') { if (m[r] === 1) x.W++; else if (m[r] === 2) x.L++; }
+        else if (gs === 'live') x.live++;
         const ts = Date.parse(m.startTime);
         if (!st && ts > now - 3 * 3600e3 && ts < now + 7 * 864e5) x.week++;
       });
