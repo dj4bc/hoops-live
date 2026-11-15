@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Barossa Hoops Live</title>
+  <meta name="description" content="Fixtures, live scores, results and ladders for every club in Barossa Valley basketball.">
+  <meta name="theme-color" content="#1E2633">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="#/"></a>
+      <nav class="main-nav" aria-label="Main" hidden>
+        <a href="#/" data-nav="home">Game day</a>
+        <a href="#/results" data-nav="results">Results</a>
+        <a href="#/teams" data-nav="teams">Teams</a>
+      </nav>
+    </div>
+  </header>
+  <div id="sponsor-strip" class="sp-strip" hidden></div>
+
+  <main id="app" class="wrap" aria-live="polite">
+    <div class="loading"><span class="spinner" aria-hidden="true"></span> Loading games…</div>
+  </main>
+
+  <div id="sponsor-wall" class="wrap"></div>
+
+  <footer class="wrap site-footer">
+    <span id="updated"></span>
+    <span>Times are Adelaide time. Data from <a id="source-link" href="#" target="_blank" rel="noopener">BasketballConnect</a>. Independent site, not affiliated with BasketballConnect or Basketball SA.</span>
+  </footer>
+
+  <script src="config.js?v=1"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

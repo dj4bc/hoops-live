@@ -1,0 +1,25 @@
+name = "hoops-portal"
+routes = [{ pattern = "portal.adamforb.es", custom_domain = true }]
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# The portal's own pages (login, sponsors, branding) are served from public/.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/files/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hoops-portal"
+database_id = "REPLACE_WITH_D1_ID"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "hoops-portal-files"
+
+[vars]
+# Sites allowed to call the public API and send sponsor counts.
+SITE_ORIGINS = "https://hoops.adamforb.es,https://panthers.adamforb.es,http://localhost:8811"
+SITE_URL = "https://hoops.adamforb.es"
+# ADMIN_SETUP_TOKEN is a secret: wrangler secret put ADMIN_SETUP_TOKEN
