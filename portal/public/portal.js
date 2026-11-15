@@ -3,6 +3,8 @@
   'use strict';
   const root = document.getElementById('root');
   const COMPS = [2861]; // competitions the site shows, for the team list
+  // Clubs outside this competition that use the portal (for now just the team stat tracker).
+  const CLUB_COMPS = { lions: [2890, 2891, 2892] };
   const SQUADI = 'https://api-basketball.squadi.com';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let ME = null, CLUB = null, PAGE = 'overview', DIRTY = false;
@@ -44,7 +46,7 @@
   }
 
   /* ---------- layout ---------- */
-  const PAGES = [['overview', 'Overview'], ['sponsors', 'Sponsors'], ['branding', 'Branding'], ['plus', 'Plus and club link'], ['people', 'Club logins']];
+  const PAGES = [['overview', 'Overview'], ['sponsors', 'Sponsors'], ['branding', 'Branding'], ['plus', 'Plus and club link'], ['tracker', 'Team tracker'], ['people', 'Club logins']];
   function render() {
     if (!CLUB) { root.innerHTML = '<div class="center">No club is linked to this login.</div>'; return; }
     const pageList = PAGES.concat(ME.admin ? [['clubs', 'All clubs']] : []);
@@ -58,7 +60,7 @@
     if (pick) pick.addEventListener('change', () => { CLUB = ME.clubs.find((c) => c.slug === pick.value); sessionStorage.setItem('portal.club', CLUB.slug); render(); });
     root.querySelector('#logout').addEventListener('click', async () => { await call('/api/logout', { method: 'POST' }).catch(() => {}); ME = null; renderLogin(); });
     const main = root.querySelector('#main');
-    ({ overview: pageOverview, sponsors: pageSponsors, branding: pageBranding, plus: pagePlus, people: pagePeople, clubs: pageClubs, account: pageAccount }[PAGE] || pageOverview)(main);
+    ({ overview: pageOverview, sponsors: pageSponsors, branding: pageBranding, plus: pagePlus, tracker: pageTracker, people: pagePeople, clubs: pageClubs, account: pageAccount }[PAGE] || pageOverview)(main);
   }
   window.addEventListener('hashchange', () => {
     if (!ME) return;
@@ -114,17 +116,17 @@
   /* ---------- sponsors ---------- */
   let TEAM_NAMES = null;
   async function teamNames() {
-    if (TEAM_NAMES) return TEAM_NAMES;
+    if (TEAM_NAMES && TEAM_NAMES.club === CLUB.slug) return TEAM_NAMES.list;
     const re = new RegExp(CLUB.match, 'i');
     const out = new Set();
     try {
-      for (const id of COMPS) {
+      for (const id of CLUB_COMPS[CLUB.slug] || COMPS) {
         const j = await fetch(SQUADI + '/livescores/round/matches?competitionId=' + id + '&divisionId=&teamIds=&ignoreStatuses=[1]').then((r) => r.json());
         (j.rounds || []).forEach((rd) => (rd.matches || []).forEach((m) => [m.team1, m.team2].forEach((t) => { if (t && t.name && re.test(t.name.trim())) out.add(teamKey(t.name)); })));
       }
     } catch (e) { /* the list is a convenience; typing still works */ }
-    TEAM_NAMES = [...out].sort();
-    return TEAM_NAMES;
+    TEAM_NAMES = { club: CLUB.slug, list: [...out].sort() };
+    return TEAM_NAMES.list;
   }
   // Same naming as the site's team page heading, e.g. "U14 Girls Panthers" or "Senior Men Panthers A".
   function teamKey(name) {
@@ -287,6 +289,47 @@
         toast('Saved'); render();
       } catch (err) { sv.disabled = false; main.querySelector('#msg').innerHTML = '<span class="err">' + esc(err.message) + '</span>'; }
     });
+  }
+
+  /* ---------- team stat tracker PINs ---------- */
+  // Each team gets a 4-digit PIN. Coaches open the tracker from their team page on the site and enter it.
+  async function pageTracker(main) {
+    main.innerHTML = '<h1>Team tracker</h1><div class="muted">Loading…</div>';
+    let t, names;
+    try { [t, names] = await Promise.all([call('/api/clubs/' + CLUB.slug + '/tracker'), teamNames()]); }
+    catch (e) { main.innerHTML = '<h1>Team tracker</h1><div class="err">' + esc(e.message) + '</div>'; return; }
+    const set = new Map(t.teams.map((x) => [x.team, x]));
+    const all = [...new Set(names.concat(t.teams.map((x) => x.team)))].sort();
+    const open = (team) => location.origin + '/track/#/t/' + encodeURIComponent(CLUB.slug) + '/' + encodeURIComponent(team);
+    main.innerHTML = '<h1>Team tracker</h1>' +
+      (t.plus || ME.admin ? '' : '<div class="card"><b>The team stat tracker is part of Plus.</b> <span class="muted">Ask about switching Plus on for your club.</span></div>') +
+      '<div class="card"><p>Coaches, managers or parents tap team stats live on a phone: turnovers, rebounds, deflections and so on. Team totals only, no player names. ' +
+      'Give each team a <b>4-digit PIN</b> and send it to the coach. They open the tracker from their team\'s page on the club site (or the link below) and enter it. ' +
+      'Five wrong tries locks the team for 15 minutes. Changing or removing a PIN signs out every phone using the old one.</p>' +
+      '<div class="sp-edit"><b>One PIN for every team</b> <span class="muted">(teams without their own PIN use it)</span><div class="row" style="margin-top:8px">' +
+      (t.clubPin ? '<span class="tag green">SET</span><span class="muted" style="font-size:12px">' + esc((t.clubPin.updatedAt || '').slice(0, 10)) + '</span>' : '<span class="muted">None</span>') +
+      '<input type="text" inputmode="numeric" maxlength="4" placeholder="4 digits" style="width:110px" data-pin="*"><button class="btn sm" type="button" data-save="*">' + (t.clubPin ? 'Change' : 'Set club PIN') + '</button>' +
+      (t.clubPin ? '<button class="btn danger sm" type="button" data-rm="*">Remove</button>' : '') + '</div></div>' +
+      '<table><thead><tr><th>Team</th><th>PIN</th><th>Own PIN</th><th></th></tr></thead><tbody>' +
+      all.map((team) => { const x = set.get(team);
+        return '<tr><td><b>' + esc(team) + '</b><br><a href="' + esc(open(team)) + '" target="_blank" rel="noopener" style="font-size:12px">Open tracker</a></td>' +
+          '<td>' + (x && x.clubPin || !x && t.clubPin ? '<span class="tag">CLUB PIN</span>' + (x && x.locked ? ' <span class="tag gold">LOCKED</span>' : '') : x ? '<span class="tag green">OWN PIN</span>' + (x.locked ? ' <span class="tag gold">LOCKED</span>' : '') + '<br><span class="muted" style="font-size:12px">' + esc((x.updatedAt || '').slice(0, 10)) + '</span>' : '<span class="muted">None</span>') + '</td>' +
+          '<td><input type="text" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4 digits" style="width:110px" data-pin="' + esc(team) + '"></td>' +
+          '<td style="white-space:nowrap"><button class="btn sm" type="button" data-save="' + esc(team) + '">' + (x && !x.clubPin ? 'Change' : 'Set own PIN') + '</button>' +
+          (x && !x.clubPin ? ' <button class="btn danger sm" type="button" data-rm="' + esc(team) + '">Remove</button>' : '') + '</td></tr>'; }).join('') +
+      '</tbody></table>' + (all.length ? '' : '<p class="muted">No teams found for this club yet.</p>') + '<div id="msg"></div></div>';
+    const msg = main.querySelector('#msg');
+    async function save(team, pin) {
+      try { await call('/api/clubs/' + CLUB.slug + '/tracker', { method: 'POST', body: { team, pin } }); toast(pin ? 'PIN saved for ' + (team === '*' ? 'every team' : team) : 'PIN removed'); pageTracker(main); }
+      catch (err) { msg.innerHTML = '<div class="err">' + esc(err.message) + '</div>'; }
+    }
+    main.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => {
+      const inp = [...main.querySelectorAll('[data-pin]')].find((i) => i.dataset.pin === b.dataset.save);
+      const pin = (inp.value || '').trim();
+      if (!/^\d{4}$/.test(pin)) { msg.innerHTML = '<div class="err">PINs are 4 digits</div>'; inp.focus(); return; }
+      save(b.dataset.save === '*' ? '*' : b.dataset.save, pin);
+    }));
+    main.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { if (window.confirm(b.dataset.rm === '*' ? 'Remove the club PIN? Teams without their own PIN will be locked out.' : 'Remove ' + b.dataset.rm + '\'s own PIN? It goes back to the club PIN, if there is one.')) save(b.dataset.rm, null); }));
   }
 
   /* ---------- people ---------- */
