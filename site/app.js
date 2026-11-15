@@ -1470,7 +1470,7 @@ function gameStatus(st, startTime, m) {
     PUSH = plus ? PUSH_BASE.replace(/\/$/, '') : '';
     SP = (plus && c.sponsors) || {};
     const root = document.documentElement.style;
-    const col = plus && c.colours ? c.colours : null;
+    const col = c && !c.all && c.colours ? c.colours : null; // every club gets its colours, Free or Plus
     root.setProperty('--blue', col ? col.primary : '#2A3342');
     root.setProperty('--navy', col ? col.dark : '#1E2633');
     root.setProperty('--red', col ? (col.accent || '#F28C28') : '#F28C28');
