@@ -5,7 +5,7 @@
 // BasketballConnect sometimes leaves a game "STARTED" after the scorer forgets to end it.
 // Treat a game that started more than 4 hours ago as finished.
 function gameStatus(st, startTime, m) {
-  if (st === 'ENDED' || (m && (m.matchEnded === true || String(m.resultStatus || '').toUpperCase() === 'FINAL'))) return 'final';
+  if (st === 'ENDED') return 'final'; // resultStatus is "FINAL" even on future games, so it can't be used
   if (!st || /POSTPONED|CANCEL|ABANDON/.test(st)) return 'upcoming';
   return Date.now() - new Date(startTime).getTime() > 4 * 3600e3 ? 'final' : 'live';
 }
