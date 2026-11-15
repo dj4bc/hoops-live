@@ -33,6 +33,24 @@ sponsors, branding and logins. First tenant: Barossa Valley Basketball Summer Se
 - The site admin (no club) also sees every club, can switch Plus on and off, set dates,
   team-name patterns and domains, and add clubs.
 
+## Team stat tracker (Plus, trial)
+
+A phone page where a coach, manager or parent taps **team** stats live (turnovers, rebounds,
+free throws, deflections...). No player names. Lives in the portal Worker at `/track/`.
+
+- **Club:** portal → *Team tracker* → give each team a 4-digit PIN and send it to the coach.
+  Five wrong tries locks that team for 15 minutes; a new or removed PIN signs out every phone.
+- **Coach:** team page on the site → *Team stat tracker* → PIN (stays unlocked 3 days) →
+  pick up to 4 metrics (presets, "same as last game", club core) with optional goals → start.
+- **Scorer:** the coach shares a link/QR (game id + key). No PIN, that game only, 48 hours.
+- Taps are saved on the phone first and sent in batches, so bad reception loses nothing.
+  Undo removes this phone's last tap. Each tap has an id, so a resend is never double-counted.
+- After *Finish*: summary (goals hit, by quarter, vs last game, copy-to-chat text), and
+  season trend lines on the team's tracker home.
+- **What can be recorded:** `portal/src/metrics.js` (14 metrics, presets, club core). Edit that
+  file to change it; the starter list and definitions are in the project notes.
+- Existing database: `cd portal && npm run db:tracker` adds the four tracker tables.
+
 ## First deploy (from a computer signed in to Cloudflare)
 
 ```sh

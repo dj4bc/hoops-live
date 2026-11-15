@@ -5,6 +5,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute hoops-portal --remote --file=schema.sql && wrangler d1 execute hoops-portal --remote --file=seed.sql",
+    "db:tracker": "wrangler d1 execute hoops-portal --remote --file=tracker-schema.sql",
     "db:init:local": "wrangler d1 execute hoops-portal --local --file=schema.sql && wrangler d1 execute hoops-portal --local --file=seed.sql"
   },
   "devDependencies": { "wrangler": "4.40.0" }

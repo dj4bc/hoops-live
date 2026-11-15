@@ -510,3 +510,5 @@ a.fn-game:hover { border-color: var(--blue); color: inherit; }
 span.sp-logo, span.sp-cta { cursor: default; }
 .brand { padding-right: 96px; }
 .club-switch { position: absolute; right: 16px; top: 18px; margin: 0; }
+.tracker-link { gap: 6px; }
+.tracker-link .tl-sub { font-weight: 500; opacity: .7; }
