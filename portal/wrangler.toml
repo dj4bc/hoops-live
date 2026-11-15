@@ -20,6 +20,6 @@ bucket_name = "hoops-portal-files"
 
 [vars]
 # Sites allowed to call the public API and send sponsor counts.
-SITE_ORIGINS = "https://hoops.adamforb.es,https://panthers.adamforb.es,http://localhost:8811"
+SITE_ORIGINS = "https://hoops.adamforb.es,https://lions.adamforb.es,https://panthers.adamforb.es,http://localhost:8811"
 SITE_URL = "https://hoops.adamforb.es"
 # ADMIN_SETUP_TOKEN is a secret: wrangler secret put ADMIN_SETUP_TOKEN

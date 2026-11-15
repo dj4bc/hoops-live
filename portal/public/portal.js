@@ -3,6 +3,8 @@
   'use strict';
   const root = document.getElementById('root');
   const COMPS = [2861]; // competitions the site shows, for the team list
+  // Clubs outside this competition that use the portal (for now just the team stat tracker).
+  const CLUB_COMPS = { lions: [2890, 2891, 2892] };
   const SQUADI = 'https://api-basketball.squadi.com';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let ME = null, CLUB = null, PAGE = 'overview', DIRTY = false;
@@ -114,17 +116,17 @@
   /* ---------- sponsors ---------- */
   let TEAM_NAMES = null;
   async function teamNames() {
-    if (TEAM_NAMES) return TEAM_NAMES;
+    if (TEAM_NAMES && TEAM_NAMES.club === CLUB.slug) return TEAM_NAMES.list;
     const re = new RegExp(CLUB.match, 'i');
     const out = new Set();
     try {
-      for (const id of COMPS) {
+      for (const id of CLUB_COMPS[CLUB.slug] || COMPS) {
         const j = await fetch(SQUADI + '/livescores/round/matches?competitionId=' + id + '&divisionId=&teamIds=&ignoreStatuses=[1]').then((r) => r.json());
         (j.rounds || []).forEach((rd) => (rd.matches || []).forEach((m) => [m.team1, m.team2].forEach((t) => { if (t && t.name && re.test(t.name.trim())) out.add(teamKey(t.name)); })));
       }
     } catch (e) { /* the list is a convenience; typing still works */ }
-    TEAM_NAMES = [...out].sort();
-    return TEAM_NAMES;
+    TEAM_NAMES = { club: CLUB.slug, list: [...out].sort() };
+    return TEAM_NAMES.list;
   }
   // Same naming as the site's team page heading, e.g. "U14 Girls Panthers" or "Senior Men Panthers A".
   function teamKey(name) {
