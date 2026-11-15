@@ -25,11 +25,16 @@ window.HOOPS_CONFIG = {
   clubs: [
     { slug: 'angaston', name: 'Angaston Panthers', short: 'Panthers', match: '^Panthers\\b', plus: true,
       logo: 'clubs/angaston.png', colours: { primary: '#14309A', dark: '#071648', accent: '#F2C14E' } },
-    { slug: 'echoes', name: 'Echoes', short: 'Echoes', match: '^Echoes\\b' },
-    { slug: 'tbc', name: 'TBC', short: 'TBC', match: '^TBC\\b' },
-    { slug: 'bulldogs', name: 'Bulldogs', short: 'Bulldogs', match: '^Bulldogs\\b' },
-    { slug: 'magic', name: 'Magic', short: 'Magic', match: '^Magic\\b' },
-    { slug: 'tigers', name: 'Tigers', short: 'Tigers', match: '^Tigers' }
+    { slug: 'echoes', name: 'Echoes', short: 'Echoes', match: '^Echoes\\b',
+      colours: { primary: '#121A5A', dark: '#0B1140', accent: '#28C4F4' } },
+    { slug: 'tbc', name: 'TBC', short: 'TBC', match: '^TBC\\b',
+      colours: { primary: '#E84D16', dark: '#084C36', accent: '#F7C206' } },
+    { slug: 'bulldogs', name: 'Bulldogs', short: 'Bulldogs', match: '^Bulldogs\\b',
+      colours: { primary: '#123981', dark: '#0A2152', accent: '#D82E2D' } },
+    { slug: 'magic', name: 'Magic', short: 'Magic', match: '^Magic\\b',
+      colours: { primary: '#21924A', dark: '#201E1E', accent: '#F16935' } },
+    { slug: 'tigers', name: 'Tigers', short: 'Tigers', match: '^Tigers',
+      colours: { primary: '#1A1A1A', dark: '#040401', accent: '#FCEE06' } }
   ],
   // Club subdomains, e.g. panthers.adamforb.es opens Angaston Panthers.
   hosts: { panthers: 'angaston', angaston: 'angaston' }
