@@ -28,7 +28,7 @@ window.HOOPS_CONFIG = {
     { slug: 'echoes', name: 'Echoes', short: 'Echoes', match: '^Echoes\\b',
       colours: { primary: '#121A5A', dark: '#0B1140', accent: '#28C4F4' } },
     { slug: 'tbc', name: 'TBC', short: 'TBC', match: '^TBC\\b',
-      colours: { primary: '#E84D16', dark: '#084C36', accent: '#F7C206' } },
+      colours: { primary: '#0E7A3A', dark: '#084C36', accent: '#F7C206' } },
     { slug: 'bulldogs', name: 'Bulldogs', short: 'Bulldogs', match: '^Bulldogs\\b',
       colours: { primary: '#123981', dark: '#0A2152', accent: '#D82E2D' } },
     { slug: 'magic', name: 'Magic', short: 'Magic', match: '^Magic\\b',
