@@ -340,26 +340,45 @@ const plusActive = (c) => !!c && !!c.plus && (!c.plus_until || c.plus_until >= n
 const cleanTeam = (t) => clean(t, 80).replace(/\s+/g, ' ');
 
 async function trackerTeams(env, club) {
-  const { results } = await env.DB.prepare('SELECT team, updated_at, locked_until FROM tracker_teams WHERE club = ? ORDER BY team').bind(club.slug).all();
-  return { plus: plusActive(club), teams: results.map((r) => ({ team: r.team, updatedAt: r.updated_at, locked: r.locked_until > Date.now() })) };
+  const { results } = await env.DB.prepare('SELECT team, updated_at, locked_until, inherited FROM tracker_teams WHERE club = ? ORDER BY team').bind(club.slug).all();
+  const all = results.find((r) => r.team === '*');
+  return { plus: plusActive(club), clubPin: all ? { updatedAt: all.updated_at } : null,
+    teams: results.filter((r) => r.team !== '*').map((r) => ({ team: r.team, updatedAt: r.updated_at, locked: r.locked_until > Date.now(), clubPin: !!r.inherited })) };
 }
+// A PIN for one team, or (team '*') one PIN for every team that has no PIN of its own.
 async function setTrackerPin(req, env, club, isAdmin) {
   if (!plusActive(club) && !isAdmin) fail(403, 'The team stat tracker is part of Plus');
   const b = await body(req);
-  const team = cleanTeam(b.team);
+  const team = b.team === '*' ? '*' : cleanTeam(b.team);
   if (!team) fail(400, 'Which team?');
-  // A new or removed PIN signs out every phone that used the old one.
-  await env.DB.prepare('DELETE FROM tracker_sessions WHERE club = ? AND team = ?').bind(club.slug, team).run();
-  if (b.pin === null) {
-    await env.DB.prepare('DELETE FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).run();
+  if (b.pin !== null && !/^\d{4}$/.test(String(b.pin || ''))) fail(400, 'PINs are 4 digits');
+  const DB = env.DB, c = club.slug;
+  const signOut = (where) => DB.prepare('DELETE FROM tracker_sessions WHERE club = ? AND team IN (SELECT team FROM tracker_teams WHERE club = ? AND ' + where + ')');
+  const stmts = [];
+  if (team === '*') {
+    // A new or removed club PIN signs out every phone that used it.
+    stmts.push(signOut('inherited = 1').bind(c, c));
+    if (b.pin === null) {
+      stmts.push(DB.prepare('DELETE FROM tracker_teams WHERE club = ? AND (team = \'*\' OR inherited = 1)').bind(c));
+    } else {
+      const salt = rand(16), hash = await hashPw(String(b.pin), salt);
+      stmts.push(DB.prepare('INSERT INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, \'*\', ?, ?, 0, 0, 0, datetime(\'now\')) ' +
+        'ON CONFLICT(club, team) DO UPDATE SET salt = excluded.salt, pin = excluded.pin, updated_at = excluded.updated_at').bind(c, salt, hash));
+      stmts.push(DB.prepare('UPDATE tracker_teams SET salt = ?, pin = ?, fails = 0, locked_until = 0, updated_at = datetime(\'now\') WHERE club = ? AND inherited = 1').bind(salt, hash, c));
+    }
   } else {
-    const pin = String(b.pin || '');
-    if (!/^\d{4}$/.test(pin)) fail(400, 'PINs are 4 digits');
-    const salt = rand(16);
-    await env.DB.prepare('INSERT INTO tracker_teams (club, team, salt, pin, fails, locked_until, updated_at) VALUES (?, ?, ?, ?, 0, 0, datetime(\'now\')) ' +
-      'ON CONFLICT(club, team) DO UPDATE SET salt = excluded.salt, pin = excluded.pin, fails = 0, locked_until = 0, updated_at = excluded.updated_at')
-      .bind(club.slug, team, salt, await hashPw(pin, salt)).run();
+    stmts.push(DB.prepare('DELETE FROM tracker_sessions WHERE club = ? AND team = ?').bind(c, team));
+    if (b.pin === null) {
+      // Back to the club PIN if there is one; the team row is made again at the next unlock.
+      stmts.push(DB.prepare('DELETE FROM tracker_teams WHERE club = ? AND team = ?').bind(c, team));
+    } else {
+      const salt = rand(16);
+      stmts.push(DB.prepare('INSERT INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, ?, ?, ?, 0, 0, 0, datetime(\'now\')) ' +
+        'ON CONFLICT(club, team) DO UPDATE SET salt = excluded.salt, pin = excluded.pin, fails = 0, locked_until = 0, inherited = 0, updated_at = excluded.updated_at')
+        .bind(c, team, salt, await hashPw(String(b.pin), salt)));
+    }
   }
+  await DB.batch(stmts);
   return trackerTeams(env, club);
 }
 
@@ -418,8 +437,16 @@ async function trackerUnlock(req, env) {
   const club = await getClub(env, clubSlug);
   if (!club) fail(404, 'No such club');
   if (!plusActive(club)) fail(403, 'The team stat tracker is part of Plus');
-  const row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
-  if (!row) fail(404, 'This team has no PIN yet. Ask your club to set one in the club portal.');
+  if (!team || team === '*') fail(400, 'Which team?');
+  let row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
+  if (!row) {
+    // No PIN of its own: use the club PIN, copied to a team row so wrong tries only lock this team.
+    const all = await env.DB.prepare('SELECT salt, pin FROM tracker_teams WHERE club = ? AND team = \'*\'').bind(club.slug).first();
+    if (!all) fail(404, 'This team has no PIN yet. Ask your club to set one in the club portal.');
+    await env.DB.prepare('INSERT OR IGNORE INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, ?, ?, ?, 0, 0, 1, datetime(\'now\'))')
+      .bind(club.slug, team, all.salt, all.pin).run();
+    row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
+  }
   const now = Date.now();
   if (row.locked_until > now) fail(429, 'Too many wrong PINs. Try again in ' + Math.ceil((row.locked_until - now) / 60000) + ' min.');
   const ok = /^\d{4}$/.test(pin) && sameStr(await hashPw(pin, row.salt), row.pin);

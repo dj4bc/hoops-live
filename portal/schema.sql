@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS visits (
 );
 
 -- Team stat tracker (Plus). One 4-digit PIN per team, set by the club in the portal.
+-- A club-wide PIN is stored as team '*'; teams without their own PIN use it.
 -- Teams are keyed by the site's team heading, e.g. "U14 Boys Panthers 1" (same as team sponsors).
 CREATE TABLE IF NOT EXISTS tracker_teams (
   club TEXT NOT NULL,
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS tracker_teams (
   pin TEXT NOT NULL,          -- PBKDF2 hash of the PIN
   fails INTEGER NOT NULL DEFAULT 0,
   locked_until INTEGER NOT NULL DEFAULT 0,
+  inherited INTEGER NOT NULL DEFAULT 0, -- 1 = copy of the club-wide PIN (team '*')
   updated_at TEXT,
   PRIMARY KEY (club, team)
 );

@@ -306,26 +306,30 @@
       '<div class="card"><p>Coaches, managers or parents tap team stats live on a phone: turnovers, rebounds, deflections and so on. Team totals only, no player names. ' +
       'Give each team a <b>4-digit PIN</b> and send it to the coach. They open the tracker from their team\'s page on the club site (or the link below) and enter it. ' +
       'Five wrong tries locks the team for 15 minutes. Changing or removing a PIN signs out every phone using the old one.</p>' +
-      '<table><thead><tr><th>Team</th><th>PIN</th><th>New PIN</th><th></th></tr></thead><tbody>' +
+      '<div class="sp-edit"><b>One PIN for every team</b> <span class="muted">(teams without their own PIN use it)</span><div class="row" style="margin-top:8px">' +
+      (t.clubPin ? '<span class="tag green">SET</span><span class="muted" style="font-size:12px">' + esc((t.clubPin.updatedAt || '').slice(0, 10)) + '</span>' : '<span class="muted">None</span>') +
+      '<input type="text" inputmode="numeric" maxlength="4" placeholder="4 digits" style="width:110px" data-pin="*"><button class="btn sm" type="button" data-save="*">' + (t.clubPin ? 'Change' : 'Set club PIN') + '</button>' +
+      (t.clubPin ? '<button class="btn danger sm" type="button" data-rm="*">Remove</button>' : '') + '</div></div>' +
+      '<table><thead><tr><th>Team</th><th>PIN</th><th>Own PIN</th><th></th></tr></thead><tbody>' +
       all.map((team) => { const x = set.get(team);
         return '<tr><td><b>' + esc(team) + '</b><br><a href="' + esc(open(team)) + '" target="_blank" rel="noopener" style="font-size:12px">Open tracker</a></td>' +
-          '<td>' + (x ? '<span class="tag green">SET</span>' + (x.locked ? ' <span class="tag gold">LOCKED</span>' : '') + '<br><span class="muted" style="font-size:12px">' + esc((x.updatedAt || '').slice(0, 10)) + '</span>' : '<span class="muted">None</span>') + '</td>' +
+          '<td>' + (x && x.clubPin || !x && t.clubPin ? '<span class="tag">CLUB PIN</span>' + (x && x.locked ? ' <span class="tag gold">LOCKED</span>' : '') : x ? '<span class="tag green">OWN PIN</span>' + (x.locked ? ' <span class="tag gold">LOCKED</span>' : '') + '<br><span class="muted" style="font-size:12px">' + esc((x.updatedAt || '').slice(0, 10)) + '</span>' : '<span class="muted">None</span>') + '</td>' +
           '<td><input type="text" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4 digits" style="width:110px" data-pin="' + esc(team) + '"></td>' +
-          '<td style="white-space:nowrap"><button class="btn sm" type="button" data-save="' + esc(team) + '">' + (x ? 'Change' : 'Set PIN') + '</button>' +
-          (x ? ' <button class="btn danger sm" type="button" data-rm="' + esc(team) + '">Remove</button>' : '') + '</td></tr>'; }).join('') +
+          '<td style="white-space:nowrap"><button class="btn sm" type="button" data-save="' + esc(team) + '">' + (x && !x.clubPin ? 'Change' : 'Set own PIN') + '</button>' +
+          (x && !x.clubPin ? ' <button class="btn danger sm" type="button" data-rm="' + esc(team) + '">Remove</button>' : '') + '</td></tr>'; }).join('') +
       '</tbody></table>' + (all.length ? '' : '<p class="muted">No teams found for this club yet.</p>') + '<div id="msg"></div></div>';
     const msg = main.querySelector('#msg');
     async function save(team, pin) {
-      try { await call('/api/clubs/' + CLUB.slug + '/tracker', { method: 'POST', body: { team, pin } }); toast(pin ? 'PIN saved for ' + team : 'PIN removed'); pageTracker(main); }
+      try { await call('/api/clubs/' + CLUB.slug + '/tracker', { method: 'POST', body: { team, pin } }); toast(pin ? 'PIN saved for ' + (team === '*' ? 'every team' : team) : 'PIN removed'); pageTracker(main); }
       catch (err) { msg.innerHTML = '<div class="err">' + esc(err.message) + '</div>'; }
     }
     main.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', () => {
       const inp = [...main.querySelectorAll('[data-pin]')].find((i) => i.dataset.pin === b.dataset.save);
       const pin = (inp.value || '').trim();
       if (!/^\d{4}$/.test(pin)) { msg.innerHTML = '<div class="err">PINs are 4 digits</div>'; inp.focus(); return; }
-      save(b.dataset.save, pin);
+      save(b.dataset.save === '*' ? '*' : b.dataset.save, pin);
     }));
-    main.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { if (window.confirm('Remove the PIN for ' + b.dataset.rm + '? Coaches will not be able to open the tracker.')) save(b.dataset.rm, null); }));
+    main.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { if (window.confirm(b.dataset.rm === '*' ? 'Remove the club PIN? Teams without their own PIN will be locked out.' : 'Remove ' + b.dataset.rm + '\'s own PIN? It goes back to the club PIN, if there is one.')) save(b.dataset.rm, null); }));
   }
 
   /* ---------- people ---------- */
