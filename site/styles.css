@@ -516,3 +516,6 @@ span.sp-logo, span.sp-cta { cursor: default; }
   .main-nav { order: 2; }
   .club-switch { position: static; order: 3; margin: 0 0 10px 8px; }
 }
+/* BasketballConnect club logos are drawn on white. */
+.cbadge.bc, .brand .cbadge.bc { background: #fff !important; }
+.cbadge.bc img { width: 92%; height: 92%; }
