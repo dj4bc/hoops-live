@@ -519,3 +519,6 @@ span.sp-logo, span.sp-cta { cursor: default; }
 /* BasketballConnect club logos are drawn on white. */
 .cbadge.bc, .brand .cbadge.bc { background: #fff !important; }
 .cbadge.bc img { width: 92%; height: 92%; }
+/* Rounds with no completed games yet are greyed out (still tappable). */
+.tab.future { color: #9AA3B2; background: #F3F5F9; border-style: dashed; font-weight: 500; }
+.tab.future[aria-pressed="true"] { background: #8A94A6; border-color: #8A94A6; border-style: solid; color: #fff; }
