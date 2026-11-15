@@ -443,6 +443,7 @@ function gameStatus(st, startTime, m) {
       '<div class="hero-stats"><div class="hero-stat"><span>Record</span><b>' + rec.W + '–' + rec.L + (rec.D ? '–' + rec.D : '') + '</b></div>' +
       '<div class="hero-stat"><span>For / against</span><b>' + rec.pf + '–' + rec.pa + '</b></div>' +
       '<div class="hero-stat"><span>Avg margin</span><b>' + (rec.avg > 0 ? '+' : '') + rec.avg + '</b></div></div>' + teamSponsor(t) + '</section>';
+    html += trackerLink(t);
 
     if (next) {
       const v = view(next, id);
@@ -992,6 +993,13 @@ function gameStatus(st, startTime, m) {
     if (!s) return '';
     return '<aside class="sp-card"><span class="sp-tag">Club sponsor</span>' + spLogo(s, 'sq') + '<div><b>' + esc(s.name) + '</b>' +
       (s.blurb ? '<p>' + esc(s.blurb) + '</p>' : '') + spLink(s, 'sp-cta', esc(s.cta || 'Visit website') + ' →') + '</div></aside>';
+  }
+  // Plus: the team stat tracker lives on the portal. Coaches unlock it with the team's PIN.
+  function trackerLink(t) {
+    if (!PORTAL || !plusOn() || isAll() || !isLions(t.name)) return '';
+    const team = groupName(t) + ' ' + t.short;
+    return '<a class="btn secondary tracker-link" href="' + PORTAL + '/track/#/t/' + encodeURIComponent(CLUB.slug) + '/' + encodeURIComponent(team) + '">' +
+      '<span aria-hidden="true">📋</span> Team stat tracker <span class="tl-sub">· coaches</span></a>';
   }
   function teamSponsor(t) {
     const s = sponsor(SP.teams && SP.teams[groupName(t) + ' ' + t.short]);

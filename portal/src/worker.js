@@ -2,6 +2,8 @@
 // Runs as a Cloudflare Worker with a D1 database (clubs, logins, sponsor counts) and an
 // R2 bucket (club and sponsor logos). The portal's own pages are static files in public/.
 
+import { METRICS, PRESETS, CLUB_CORE, MAX_FOCUS } from './metrics.js';
+
 const SESSION_DAYS = 30;
 const PBKDF2_ITER = 20000;
 const MAX_UPLOAD = 1024 * 1024; // 1 MB per logo
@@ -51,6 +53,8 @@ async function api(req, env, url) {
   if (p === '/api/setup' && m === 'POST') return json(await setup(req, env));
   if (p === '/api/login' && m === 'POST') return login(req, env);
   if (p === '/api/logout' && m === 'POST') return logout(req, env);
+  // Team stat tracker: its own PIN and scorer-link access, not portal logins.
+  if (p.startsWith('/api/tracker/')) return json(await tracker(req, env, url));
 
   // ---- signed in ----
   const me = await currentUser(req, env);
@@ -72,6 +76,8 @@ async function api(req, env, url) {
     if (sub === '/stats' && m === 'GET') return json(await stats(env, club, url));
     if (sub === '/users' && m === 'GET') return json(await clubUsers(env, slug));
     if (sub === '/users' && m === 'POST') return json(await addUser(req, env, slug, me));
+    if (sub === '/tracker' && m === 'GET') return json(await trackerTeams(env, club));
+    if (sub === '/tracker' && m === 'POST') return json(await setTrackerPin(req, env, club, !me.club));
   }
   if (p === '/api/clubs' && m === 'POST') {
     if (me.club) fail(403, 'Only the site admin can add clubs');
@@ -319,4 +325,214 @@ async function currentUser(req, env) {
     if (origin && origin !== new URL(req.url).origin) fail(403, 'Wrong origin');
   }
   return env.DB.prepare('SELECT u.email, u.name, u.club FROM sessions s JOIN users u ON u.email = s.email WHERE s.token = ? AND s.expires > ?').bind(t, Date.now()).first();
+}
+
+/* ---------- team stat tracker (Plus) ---------- */
+// A coach unlocks their team with a 4-digit PIN that the club sets in the portal. Starting a game
+// makes a scorer link (game id + random key) that a parent can tap on without any login.
+// Taps are made on the phone first and sent in batches, so they survive bad reception.
+const TRK_SESSION_DAYS = 3;          // stays unlocked over a weekend
+const TRK_MAX_FAILS = 5, TRK_LOCK_MIN = 15;
+const TRK_SCORER_HOURS = 48;         // scorer links stop working after this
+const METRIC_BY_ID = Object.fromEntries(METRICS.map((x) => [x.id, x]));
+const plusActive = (c) => !!c && !!c.plus && (!c.plus_until || c.plus_until >= new Date().toISOString().slice(0, 10));
+const cleanTeam = (t) => clean(t, 80).replace(/\s+/g, ' ');
+
+async function trackerTeams(env, club) {
+  const { results } = await env.DB.prepare('SELECT team, updated_at, locked_until, inherited FROM tracker_teams WHERE club = ? ORDER BY team').bind(club.slug).all();
+  const all = results.find((r) => r.team === '*');
+  return { plus: plusActive(club), clubPin: all ? { updatedAt: all.updated_at } : null,
+    teams: results.filter((r) => r.team !== '*').map((r) => ({ team: r.team, updatedAt: r.updated_at, locked: r.locked_until > Date.now(), clubPin: !!r.inherited })) };
+}
+// A PIN for one team, or (team '*') one PIN for every team that has no PIN of its own.
+async function setTrackerPin(req, env, club, isAdmin) {
+  if (!plusActive(club) && !isAdmin) fail(403, 'The team stat tracker is part of Plus');
+  const b = await body(req);
+  const team = b.team === '*' ? '*' : cleanTeam(b.team);
+  if (!team) fail(400, 'Which team?');
+  if (b.pin !== null && !/^\d{4}$/.test(String(b.pin || ''))) fail(400, 'PINs are 4 digits');
+  const DB = env.DB, c = club.slug;
+  const signOut = (where) => DB.prepare('DELETE FROM tracker_sessions WHERE club = ? AND team IN (SELECT team FROM tracker_teams WHERE club = ? AND ' + where + ')');
+  const stmts = [];
+  if (team === '*') {
+    // A new or removed club PIN signs out every phone that used it.
+    stmts.push(signOut('inherited = 1').bind(c, c));
+    if (b.pin === null) {
+      stmts.push(DB.prepare('DELETE FROM tracker_teams WHERE club = ? AND (team = \'*\' OR inherited = 1)').bind(c));
+    } else {
+      const salt = rand(16), hash = await hashPw(String(b.pin), salt);
+      stmts.push(DB.prepare('INSERT INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, \'*\', ?, ?, 0, 0, 0, datetime(\'now\')) ' +
+        'ON CONFLICT(club, team) DO UPDATE SET salt = excluded.salt, pin = excluded.pin, updated_at = excluded.updated_at').bind(c, salt, hash));
+      stmts.push(DB.prepare('UPDATE tracker_teams SET salt = ?, pin = ?, fails = 0, locked_until = 0, updated_at = datetime(\'now\') WHERE club = ? AND inherited = 1').bind(salt, hash, c));
+    }
+  } else {
+    stmts.push(DB.prepare('DELETE FROM tracker_sessions WHERE club = ? AND team = ?').bind(c, team));
+    if (b.pin === null) {
+      // Back to the club PIN if there is one; the team row is made again at the next unlock.
+      stmts.push(DB.prepare('DELETE FROM tracker_teams WHERE club = ? AND team = ?').bind(c, team));
+    } else {
+      const salt = rand(16);
+      stmts.push(DB.prepare('INSERT INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, ?, ?, ?, 0, 0, 0, datetime(\'now\')) ' +
+        'ON CONFLICT(club, team) DO UPDATE SET salt = excluded.salt, pin = excluded.pin, fails = 0, locked_until = 0, inherited = 0, updated_at = excluded.updated_at')
+        .bind(c, team, salt, await hashPw(String(b.pin), salt)));
+    }
+  }
+  await DB.batch(stmts);
+  return trackerTeams(env, club);
+}
+
+async function tracker(req, env, url) {
+  const p = url.pathname.slice('/api/tracker'.length), m = req.method;
+  if (p === '/metrics' && m === 'GET') return { metrics: METRICS, presets: PRESETS, core: CLUB_CORE, max: MAX_FOCUS };
+  if (p === '/unlock' && m === 'POST') return trackerUnlock(req, env);
+  if (p === '/team' && m === 'GET') return trackerTeam(env, await trackerAuth(req, env));
+  if (p === '/lock' && m === 'POST') {
+    const t = bearer(req);
+    if (t) await env.DB.prepare('DELETE FROM tracker_sessions WHERE token = ?').bind(t).run();
+    return { ok: true };
+  }
+  if (p === '/games' && m === 'POST') return trackerNewGame(req, env, await trackerAuth(req, env));
+  let mm;
+  if ((mm = p.match(/^\/games\/([a-z0-9]{10})(\/[a-z]+)?$/))) {
+    const game = await env.DB.prepare('SELECT * FROM tracker_games WHERE id = ?').bind(mm[1]).first();
+    if (!game) fail(404, 'Game not found');
+    const sub = mm[2] || '';
+    const who = await gameAccess(req, env, url, game, sub === '' && m === 'GET');
+    if (sub === '' && m === 'GET') return gameState(env, game, who);
+    if (sub === '/taps' && m === 'POST') return gameTaps(req, env, game, who);
+    if (sub === '/finish' && m === 'POST') {
+      await env.DB.prepare('UPDATE tracker_games SET status = \'final\', finished_at = ? WHERE id = ?').bind(Date.now(), game.id).run();
+      return gameState(env, Object.assign({}, game, { status: 'final' }), who);
+    }
+    if (sub === '/reopen' && m === 'POST') {
+      if (who !== 'coach') fail(403, 'Only the coach can reopen a game');
+      await env.DB.prepare('UPDATE tracker_games SET status = \'live\', finished_at = NULL WHERE id = ?').bind(game.id).run();
+      return gameState(env, Object.assign({}, game, { status: 'live' }), who);
+    }
+    if (sub === '/delete' && m === 'POST') {
+      if (who !== 'coach') fail(403, 'Only the coach can delete a game');
+      await env.DB.batch([env.DB.prepare('DELETE FROM tracker_taps WHERE game = ?').bind(game.id), env.DB.prepare('DELETE FROM tracker_games WHERE id = ?').bind(game.id)]);
+      return { ok: true };
+    }
+  }
+  fail(404, 'Not found');
+}
+
+function bearer(req) { const m = (req.headers.get('Authorization') || '').match(/^Bearer ([a-f0-9]{48})$/); return m ? m[1] : null; }
+async function trackerAuth(req, env, optional) {
+  const t = bearer(req);
+  const s = t && await env.DB.prepare('SELECT club, team FROM tracker_sessions WHERE token = ? AND expires > ?').bind(t, Date.now()).first();
+  if (!s && !optional) fail(401, 'Enter the team PIN');
+  if (s) {
+    const club = await getClub(env, s.club);
+    if (!plusActive(club)) { if (optional) return null; fail(403, 'The team stat tracker is part of Plus'); }
+  }
+  return s || null;
+}
+
+async function trackerUnlock(req, env) {
+  const b = await body(req);
+  const clubSlug = clean(b.club, 30), team = cleanTeam(b.team), pin = String(b.pin || '');
+  const club = await getClub(env, clubSlug);
+  if (!club) fail(404, 'No such club');
+  if (!plusActive(club)) fail(403, 'The team stat tracker is part of Plus');
+  if (!team || team === '*') fail(400, 'Which team?');
+  let row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
+  if (!row) {
+    // No PIN of its own: use the club PIN, copied to a team row so wrong tries only lock this team.
+    const all = await env.DB.prepare('SELECT salt, pin FROM tracker_teams WHERE club = ? AND team = \'*\'').bind(club.slug).first();
+    if (!all) fail(404, 'This team has no PIN yet. Ask your club to set one in the club portal.');
+    await env.DB.prepare('INSERT OR IGNORE INTO tracker_teams (club, team, salt, pin, fails, locked_until, inherited, updated_at) VALUES (?, ?, ?, ?, 0, 0, 1, datetime(\'now\'))')
+      .bind(club.slug, team, all.salt, all.pin).run();
+    row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
+  }
+  const now = Date.now();
+  if (row.locked_until > now) fail(429, 'Too many wrong PINs. Try again in ' + Math.ceil((row.locked_until - now) / 60000) + ' min.');
+  const ok = /^\d{4}$/.test(pin) && sameStr(await hashPw(pin, row.salt), row.pin);
+  if (!ok) {
+    const fails = row.fails + 1, lock = fails >= TRK_MAX_FAILS;
+    await env.DB.prepare('UPDATE tracker_teams SET fails = ?, locked_until = ? WHERE club = ? AND team = ?')
+      .bind(lock ? 0 : fails, lock ? now + TRK_LOCK_MIN * 60000 : 0, club.slug, team).run();
+    fail(lock ? 429 : 401, lock ? 'Too many wrong PINs. Try again in ' + TRK_LOCK_MIN + ' min.' : 'Wrong PIN (' + (TRK_MAX_FAILS - fails) + (TRK_MAX_FAILS - fails === 1 ? ' try' : ' tries') + ' left)');
+  }
+  const token = rand(24), expires = now + TRK_SESSION_DAYS * 864e5;
+  await env.DB.batch([
+    env.DB.prepare('UPDATE tracker_teams SET fails = 0 WHERE club = ? AND team = ?').bind(club.slug, team),
+    env.DB.prepare('INSERT INTO tracker_sessions (token, club, team, expires) VALUES (?, ?, ?, ?)').bind(token, club.slug, team, expires),
+    env.DB.prepare('DELETE FROM tracker_sessions WHERE expires < ?').bind(now)
+  ]);
+  return { token, expires, club: club.slug, team };
+}
+
+// Every game for the team, with totals per metric, for the game list and the season trends.
+async function trackerTeam(env, s) {
+  const { results: games } = await env.DB.prepare('SELECT id, opponent, game_date, metrics, status, created_at FROM tracker_games WHERE club = ? AND team = ? ORDER BY created_at DESC LIMIT 60').bind(s.club, s.team).all();
+  const { results: rows } = await env.DB.prepare('SELECT t.game, t.metric, t.val, COUNT(*) AS n FROM tracker_taps t JOIN tracker_games g ON g.id = t.game ' +
+    'WHERE g.club = ? AND g.team = ? AND t.deleted = 0 GROUP BY t.game, t.metric, t.val').bind(s.club, s.team).all();
+  const tot = {};
+  rows.forEach((r) => { const g = tot[r.game] || (tot[r.game] = {}); const x = g[r.metric] || (g[r.metric] = {}); x[r.val] = r.n; });
+  return { club: s.club, team: s.team, games: games.map((g) => ({ id: g.id, opponent: g.opponent, date: g.game_date, metrics: parse(g.metrics, []), status: g.status, createdAt: g.created_at, totals: tot[g.id] || {} })) };
+}
+
+async function trackerNewGame(req, env, s) {
+  const b = await body(req);
+  const seen = new Set();
+  const metrics = (Array.isArray(b.metrics) ? b.metrics : []).filter((x) => x && METRIC_BY_ID[x.id] && !seen.has(x.id) && seen.add(x.id)).slice(0, MAX_FOCUS).map((x) => {
+    const def = METRIC_BY_ID[x.id];
+    let goal = x.goal === '' || x.goal == null ? null : Number(x.goal);
+    if (def.goal === 'none' || !Number.isFinite(goal)) goal = null;
+    else goal = Math.max(0, Math.min(def.goal === 'pct' ? 100 : 999, Math.round(goal)));
+    return { id: x.id, goal };
+  });
+  if (!metrics.length) fail(400, 'Pick at least one thing to track');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : adelaideDay();
+  const id = rand(5), key = rand(8);
+  await env.DB.prepare('INSERT INTO tracker_games (id, club, team, opponent, game_date, metrics, scorer_key, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, \'live\', ?)')
+    .bind(id, s.club, s.team, clean(b.opponent, 60) || null, date, JSON.stringify(metrics), key, Date.now()).run();
+  const game = await env.DB.prepare('SELECT * FROM tracker_games WHERE id = ?').bind(id).first();
+  return gameState(env, game, 'coach');
+}
+
+// The team's coach (PIN) can always see and fix a game. A scorer link works for 48 hours
+// and, once the game is finished, only for reading the summary.
+async function gameAccess(req, env, url, game, readOnly) {
+  const s = await trackerAuth(req, env, true);
+  if (s && s.club === game.club && s.team === game.team) return 'coach';
+  const k = url.searchParams.get('k') || req.headers.get('X-Scorer-Key') || '';
+  if (k && sameStr(k, game.scorer_key)) {
+    const club = await getClub(env, game.club);
+    if (!plusActive(club)) fail(403, 'The team stat tracker is part of Plus');
+    if (Date.now() - game.created_at > TRK_SCORER_HOURS * 3600e3) fail(403, 'This scorer link has expired');
+    if (!readOnly && game.status !== 'live') fail(409, 'This game is finished. Ask the coach to reopen it.');
+    return 'scorer';
+  }
+  fail(401, 'Enter the team PIN, or use the scorer link from the coach');
+}
+
+async function gameState(env, game, who) {
+  const { results } = await env.DB.prepare('SELECT metric, val, q, COUNT(*) AS n FROM tracker_taps WHERE game = ? AND deleted = 0 GROUP BY metric, val, q').bind(game.id).all();
+  const totals = {};
+  results.forEach((r) => { const x = totals[r.metric] || (totals[r.metric] = {}); const q = x[r.q] || (x[r.q] = {}); q[r.val] = r.n; });
+  const out = { id: game.id, club: game.club, team: game.team, opponent: game.opponent, date: game.game_date, metrics: parse(game.metrics, []), status: game.status, createdAt: game.created_at, totals, role: who };
+  if (who === 'coach') out.scorerKey = game.scorer_key;
+  return out;
+}
+
+async function gameTaps(req, env, game, who) {
+  if (who !== 'coach' && game.status !== 'live') fail(409, 'This game is finished');
+  const b = await body(req);
+  const allowed = Object.fromEntries(parse(game.metrics, []).map((x) => [x.id, METRIC_BY_ID[x.id]]));
+  const stmts = [];
+  (Array.isArray(b.events) ? b.events.slice(0, 300) : []).forEach((e) => {
+    const def = e && allowed[e.m];
+    if (!def || !/^[a-z0-9]{6,24}$/.test(e.id || '')) return;
+    const okVal = def.tap === 'made_missed' ? e.v === 'made' || e.v === 'missed' : e.v === '+';
+    const q = parseInt(e.q, 10);
+    if (!okVal || !(q >= 1 && q <= 8)) return;
+    stmts.push(env.DB.prepare('INSERT INTO tracker_taps (game, id, metric, val, q, ts, deleted) VALUES (?, ?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(game, id) DO UPDATE SET deleted = MAX(deleted, excluded.deleted)')
+      .bind(game.id, e.id, e.m, e.v, q, Number(e.t) || Date.now(), e.del ? 1 : 0));
+  });
+  if (stmts.length) await env.DB.batch(stmts);
+  return gameState(env, game, who);
 }
