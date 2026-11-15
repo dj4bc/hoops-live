@@ -2,3 +2,5 @@ node_modules
 .wrangler
 .dev.vars
 test/
+.admin-setup-token
+create-admin.sh

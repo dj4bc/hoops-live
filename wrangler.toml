@@ -1,12 +1,13 @@
 # The public results site: static files in site/, served by Cloudflare (Workers static assets).
 name = "hoops-live"
 compatibility_date = "2025-09-01"
-
-[assets]
-directory = "./site"
+workers_dev = false
 
 # Club domains. Wrangler creates the DNS records in the adamforb.es zone.
 routes = [
   { pattern = "hoops.adamforb.es", custom_domain = true },
   { pattern = "panthers.adamforb.es", custom_domain = true }
 ]
+
+[assets]
+directory = "./site"
