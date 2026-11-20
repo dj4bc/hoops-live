@@ -21,6 +21,10 @@
   /* ---------- helpers ---------- */
   function rid() { const a = new Uint8Array(8); crypto.getRandomValues(a); return [...a].map((x) => x.toString(16).padStart(2, '0')).join(''); }
   function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
+  const nextKey = (club, team) => 'trk.next.' + club + '|' + team;
+  function nextGame(club, team) {
+    try { const n = JSON.parse(sessionStorage.getItem(nextKey(club, team)) || 'null'); const today = new Date(Date.now() + 10.5 * 3600e3).toISOString().slice(0, 10); return n && n.opp && (!n.d || n.d >= today) ? n : null; } catch (e) { return null; }
+  }
   const tokKey = (club, team) => 'trk.tok.' + club + '|' + team;
   function token(club, team) { const t = store.get(tokKey(club, team)); return t && t.expires > Date.now() ? t.token : null; }
   async function api(path, opts) {
@@ -81,7 +85,15 @@
   /* ---------- router ---------- */
   async function route() {
     clearInterval(timer); timer = null;
-    const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+    const raw = location.hash.replace(/^#\/?/, '');
+    const qi = raw.indexOf('?');
+    const params = new URLSearchParams(qi >= 0 ? raw.slice(qi + 1) : '');
+    const parts = (qi >= 0 ? raw.slice(0, qi) : raw).split('/').map(decodeURIComponent);
+    // The club site sends the next game (opponent, date, match id) so the coach never types it.
+    if (parts[0] === 't' && parts[1] && parts[2] && params.has('opp')) {
+      try { sessionStorage.setItem(nextKey(parts[1], parts[2]), JSON.stringify({ opp: params.get('opp'), d: params.get('d'), m: params.get('m'), r: params.get('r') })); } catch (e) { /* fine */ }
+      history.replaceState(null, '', '#' + raw.slice(0, qi));
+    }
     view = location.hash;
     try {
       await catalogue();
@@ -160,7 +172,7 @@
     };
     app.innerHTML = header(null, team, 'Team stat tracker') + '<div class="pad">' +
       (live.length ? '<div class="lbl" style="margin-top:4px">Live now</div><div class="card">' + live.map(gameRow).join('') + '</div>' : '') +
-      '<a class="btn" href="' + teamHref(club, team) + '/new">＋ Start tracking a game</a>' +
+      '<a class="btn" href="' + teamHref(club, team) + '/new">＋ Start tracking ' + (nextGame(club, team) ? 'v ' + esc(nextGame(club, team).opp) : 'a game') + '</a>' +
       '<div class="lbl">Games</div><div class="card">' + (done.length ? done.map(gameRow).join('') : '<div class="muted">No finished games yet. Start one at tip-off.</div>') + '</div>' +
       trends(done.slice().reverse()) +
       '<p class="muted" style="font-size:13px">Team totals only, no player names. Only people with the team PIN can see this page.</p>' +
@@ -213,13 +225,15 @@
     if (last) useList(last.metrics.map((m) => m.id), Object.fromEntries(last.metrics.map((m) => [m.id, m.goal])));
     else useList(CAT.core);
     const today = new Date(Date.now() + 10.5 * 3600e3).toISOString().slice(0, 10);
+    const nx = nextGame(club, team);
 
     function draw() {
       const groups = [];
       CAT.metrics.forEach((m) => { if (!groups.includes(m.group)) groups.push(m.group); });
       const chips = (last ? [['last', '↻ Same as last game']] : []).concat([['core', 'Club core']], Object.keys(CAT.presets).map((k) => [k, k]));
       app.querySelector('#body').innerHTML =
-        '<div class="lbl" style="margin-top:4px">Opponent (optional)</div><input class="field" id="opp" placeholder="e.g. Echoes Dark" maxlength="60" value="' + esc(app.dataset.opp || '') + '">' +
+        (nx && !app.dataset.edit ? '<div class="card row" style="margin-top:2px"><div class="grow"><div class="lbl" style="margin:0 0 2px">This game</div><b>v ' + esc(nx.opp) + '</b><div class="muted" style="font-size:14px">' + esc([nx.r, nx.d ? fmtDay(nx.d) : ''].filter(Boolean).join(' · ')) + '</div></div><button type="button" class="btn o sm" id="other">Different game</button></div>'
+          : '<div class="lbl" style="margin-top:4px">Opponent (optional)</div><input class="field" id="opp" placeholder="e.g. Echoes Dark" maxlength="60" value="' + esc(app.dataset.opp || '') + '">') +
         '<div class="lbl">Start from</div><div class="chips">' + chips.map(([k, l]) => '<button type="button" class="chip' + (from === k ? ' on' : '') + '" data-from="' + esc(k) + '">' + esc(l) + '</button>').join('') + '</div>' +
         '<div class="lbl">Pick up to ' + max + ' · set a goal <span style="color:var(--muted);letter-spacing:0">(' + chosen.size + '/' + max + ')</span></div><div class="card" style="padding-top:2px">' +
         groups.map((gname) => '<div class="grp">' + esc(gname) + '</div>' + CAT.metrics.filter((m) => m.group === gname).map((m) => {
@@ -232,7 +246,10 @@
         '<div class="err" id="msg"></div><button class="btn" id="go" type="button"' + (chosen.size ? '' : ' disabled') + '>Start tracking</button>' +
         '<p class="muted" style="font-size:13px">Goals are optional. You will get a scorer link to share with whoever is tapping.</p>';
       const body = app.querySelector('#body');
-      body.querySelector('#opp').addEventListener('input', (e) => { app.dataset.opp = e.target.value; });
+      const oppEl = body.querySelector('#opp');
+      if (oppEl) oppEl.addEventListener('input', (e) => { app.dataset.opp = e.target.value; });
+      const other = body.querySelector('#other');
+      if (other) other.addEventListener('click', () => { app.dataset.edit = '1'; app.dataset.opp = ''; draw(); });
       body.querySelectorAll('[data-from]').forEach((b) => b.addEventListener('click', () => {
         from = b.dataset.from;
         if (from === 'last') useList(last.metrics.map((m) => m.id), Object.fromEntries(last.metrics.map((m) => [m.id, m.goal])));
@@ -247,8 +264,8 @@
       body.querySelector('#go').addEventListener('click', async (e) => {
         e.target.disabled = true;
         try {
-          const g = await api('/games', { method: 'POST', token: tok, body: { opponent: app.dataset.opp || '', date: today, metrics: [...chosen].map(([id, goal]) => ({ id, goal: goal === '' ? null : Number(goal) })) } });
-          delete app.dataset.opp;
+          const g = await api('/games', { method: 'POST', token: tok, body: { opponent: nx && !app.dataset.edit ? nx.opp : app.dataset.opp || '', date: nx && !app.dataset.edit && nx.d ? nx.d : today, metrics: [...chosen].map(([id, goal]) => ({ id, goal: goal === '' ? null : Number(goal) })) } });
+          delete app.dataset.opp; delete app.dataset.edit;
           location.hash = teamHref(club, team) + '/g/' + g.id + '?share=1';
         } catch (err) { e.target.disabled = false; if (!lockedOut(club, team, err)) body.querySelector('#msg').textContent = err.message; }
       });
