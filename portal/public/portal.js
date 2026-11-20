@@ -49,7 +49,8 @@
   const PAGES = [['overview', 'Overview'], ['sponsors', 'Sponsors'], ['branding', 'Branding'], ['plus', 'Plus and club link'], ['tracker', 'Team tracker'], ['people', 'Club logins']];
   function render() {
     if (!CLUB) { root.innerHTML = '<div class="center">No club is linked to this login.</div>'; return; }
-    const pageList = PAGES.concat(ME.admin ? [['clubs', 'All clubs']] : []);
+    const tracker = (ME.trackerClubs || []).includes('*') || (ME.trackerClubs || []).includes(CLUB.slug);
+    const pageList = PAGES.filter(([k]) => k !== 'tracker' || tracker).concat(ME.admin ? [['clubs', 'All clubs']] : []);
     root.innerHTML = '<div class="shell"><aside class="side">' +
       (ME.admin ? '<select id="clubpick">' + ME.clubs.map((c) => '<option value="' + esc(c.slug) + '"' + (c.slug === CLUB.slug ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select>' : '') +
       '<div class="club">' + badge(CLUB, 42) + '<div><b>' + esc(CLUB.name) + '</b><span>' + (CLUB.plus ? 'Plus' + (CLUB.plusUntil ? ' until ' + esc(fmtDate(CLUB.plusUntil)) : '') : 'Free') + '</span></div></div>' +

@@ -61,7 +61,7 @@ async function api(req, env, url) {
   if (!me) fail(401, 'Please sign in');
   if (p === '/api/me' && m === 'GET') {
     const clubs = me.club ? [await getClub(env, me.club)] : (await env.DB.prepare('SELECT * FROM clubs ORDER BY sort, name').all()).results;
-    return json({ email: me.email, name: me.name, admin: !me.club, club: me.club, clubs: clubs.filter(Boolean).map(adminClub), siteUrl: env.SITE_URL || '' });
+    return json({ email: me.email, name: me.name, admin: !me.club, club: me.club, clubs: clubs.filter(Boolean).map(adminClub), siteUrl: env.SITE_URL || '', trackerClubs: trackerClubs(env) });
   }
   let mm;
   if ((mm = p.match(/^\/api\/clubs\/([a-z0-9-]+)(\/[a-z]+)?$/))) {
@@ -336,17 +336,20 @@ const TRK_MAX_FAILS = 5, TRK_LOCK_MIN = 15;
 const TRK_SCORER_HOURS = 48;         // scorer links stop working after this
 const METRIC_BY_ID = Object.fromEntries(METRICS.map((x) => [x.id, x]));
 const plusActive = (c) => !!c && !!c.plus && (!c.plus_until || c.plus_until >= new Date().toISOString().slice(0, 10));
+// While testing, only clubs named in TRACKER_CLUBS (wrangler.toml, '*' = every Plus club) get the tracker.
+const trackerClubs = (env) => String(env.TRACKER_CLUBS || '').split(',').map((x) => x.trim()).filter(Boolean);
+const trackerOn = (env, c) => plusActive(c) && (trackerClubs(env).includes('*') || trackerClubs(env).includes(c.slug));
 const cleanTeam = (t) => clean(t, 80).replace(/\s+/g, ' ');
 
 async function trackerTeams(env, club) {
   const { results } = await env.DB.prepare('SELECT team, updated_at, locked_until, inherited FROM tracker_teams WHERE club = ? ORDER BY team').bind(club.slug).all();
   const all = results.find((r) => r.team === '*');
-  return { plus: plusActive(club), clubPin: all ? { updatedAt: all.updated_at } : null,
+  return { plus: trackerOn(env, club), clubPin: all ? { updatedAt: all.updated_at } : null,
     teams: results.filter((r) => r.team !== '*').map((r) => ({ team: r.team, updatedAt: r.updated_at, locked: r.locked_until > Date.now(), clubPin: !!r.inherited })) };
 }
 // A PIN for one team, or (team '*') one PIN for every team that has no PIN of its own.
 async function setTrackerPin(req, env, club, isAdmin) {
-  if (!plusActive(club) && !isAdmin) fail(403, 'The team stat tracker is part of Plus');
+  if (!trackerOn(env, club)) fail(403, 'The team stat tracker is not switched on for this club');
   const b = await body(req);
   const team = b.team === '*' ? '*' : cleanTeam(b.team);
   if (!team) fail(400, 'Which team?');
@@ -425,7 +428,7 @@ async function trackerAuth(req, env, optional) {
   if (!s && !optional) fail(401, 'Enter the team PIN');
   if (s) {
     const club = await getClub(env, s.club);
-    if (!plusActive(club)) { if (optional) return null; fail(403, 'The team stat tracker is part of Plus'); }
+    if (!trackerOn(env, club)) { if (optional) return null; fail(403, 'The team stat tracker is not switched on for this club'); }
   }
   return s || null;
 }
@@ -435,7 +438,7 @@ async function trackerUnlock(req, env) {
   const clubSlug = clean(b.club, 30), team = cleanTeam(b.team), pin = String(b.pin || '');
   const club = await getClub(env, clubSlug);
   if (!club) fail(404, 'No such club');
-  if (!plusActive(club)) fail(403, 'The team stat tracker is part of Plus');
+  if (!trackerOn(env, club)) fail(403, 'The team stat tracker is not switched on for this club');
   if (!team || team === '*') fail(400, 'Which team?');
   let row = await env.DB.prepare('SELECT * FROM tracker_teams WHERE club = ? AND team = ?').bind(club.slug, team).first();
   if (!row) {
@@ -501,7 +504,7 @@ async function gameAccess(req, env, url, game, readOnly) {
   const k = url.searchParams.get('k') || req.headers.get('X-Scorer-Key') || '';
   if (k && sameStr(k, game.scorer_key)) {
     const club = await getClub(env, game.club);
-    if (!plusActive(club)) fail(403, 'The team stat tracker is part of Plus');
+    if (!trackerOn(env, club)) fail(403, 'The team stat tracker is not switched on for this club');
     if (Date.now() - game.created_at > TRK_SCORER_HOURS * 3600e3) fail(403, 'This scorer link has expired');
     if (!readOnly && game.status !== 'live') fail(409, 'This game is finished. Ask the coach to reopen it.');
     return 'scorer';

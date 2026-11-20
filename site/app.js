@@ -996,7 +996,7 @@ function gameStatus(st, startTime, m) {
   }
   // Plus: the team stat tracker lives on the portal. Coaches unlock it with the team's PIN.
   function trackerLink(t) {
-    if (!PORTAL || !plusOn() || isAll() || !isLions(t.name)) return '';
+    if (!PORTAL || !plusOn() || isAll() || !isLions(t.name) || !(CFG.trackerClubs || []).includes(CLUB.slug)) return '';
     const team = groupName(t) + ' ' + t.short;
     return '<a class="btn secondary tracker-link" href="' + PORTAL + '/track/#/t/' + encodeURIComponent(CLUB.slug) + '/' + encodeURIComponent(team) + '">' +
       '<span aria-hidden="true">📋</span> Team stat tracker <span class="tl-sub">· coaches</span></a>';
