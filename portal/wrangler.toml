@@ -1,5 +1,15 @@
 name = "hoops-portal"
-routes = [{ pattern = "portal.adamforb.es", custom_domain = true }]
+routes = [
+  { pattern = "portal.adamforb.es", custom_domain = true },
+  # Team stat tracker on the Lions Den domain, so it opens inside the pinned Lions Den app on iPhone
+  # (same site = no Safari bars). Everything else on lions.adamforb.es still goes to GitHub Pages.
+  # Needs lions.adamforb.es proxied (orange cloud) in Cloudflare DNS, SSL mode Full for that host.
+  # To undo: delete these four lines and deploy.
+  { pattern = "lions.adamforb.es/track*", zone_name = "adamforb.es" },
+  { pattern = "lions.adamforb.es/api/tracker/*", zone_name = "adamforb.es" },
+  { pattern = "lions.adamforb.es/api/public/*", zone_name = "adamforb.es" },
+  { pattern = "lions.adamforb.es/qrcode.js", zone_name = "adamforb.es" },
+]
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
 workers_dev = false
