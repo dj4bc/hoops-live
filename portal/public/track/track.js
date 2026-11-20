@@ -85,10 +85,18 @@
   /* ---------- router ---------- */
   async function route() {
     clearInterval(timer); timer = null;
-    const raw = location.hash.replace(/^#\/?/, '');
+    let raw = location.hash.replace(/^#\/?/, '');
+    // Some iPhone hand-offs (a home-screen web app opening this link) arrive with the "?" encoded
+    // as %3F, which put the whole query string into the team name. Treat %3F as the query start.
+    if (raw.indexOf('?') < 0 && /%3F/i.test(raw)) raw = raw.replace(/%3F/i, '?');
     const qi = raw.indexOf('?');
-    const params = new URLSearchParams(qi >= 0 ? raw.slice(qi + 1) : '');
-    const parts = (qi >= 0 ? raw.slice(0, qi) : raw).split('/').map(decodeURIComponent);
+    let query = qi >= 0 ? raw.slice(qi + 1) : '';
+    if (query.indexOf('=') < 0 && /%3D/i.test(query)) { try { query = decodeURIComponent(query); } catch (e) { /* leave it */ } }
+    const params = new URLSearchParams(query);
+    const dec = (x) => { try { return decodeURIComponent(x); } catch (e) { return x; } };
+    const parts = (qi >= 0 ? raw.slice(0, qi) : raw).split('/').map(dec);
+    // Opened bare (e.g. from the home-screen icon): go back to the last team used on this phone.
+    if (!parts[0]) { const last = store.get('trk.last'); if (last && last.club && last.team && token(last.club, last.team)) { location.replace('#' + teamHref(last.club, last.team).slice(1)); return; } }
     // The club site sends the next game (opponent, date, match id) so the coach never types it.
     if (parts[0] === 't' && parts[1] && parts[2] && params.has('opp')) {
       try { sessionStorage.setItem(nextKey(parts[1], parts[2]), JSON.stringify({ opp: params.get('opp'), d: params.get('d'), m: params.get('m'), r: params.get('r') })); } catch (e) { /* fine */ }
@@ -100,6 +108,7 @@
       if (parts[0] === 't' && parts[1] && parts[2]) {
         const club = parts[1], team = parts[2];
         await brand(club);
+        store.set('trk.last', { club, team });
         const tok = token(club, team);
         if (!tok) return renderPin(club, team);
         if (parts[3] === 'new') return renderNew(club, team, tok);
@@ -154,9 +163,24 @@
   }
 
   /* ---------- team home: live game, history, trends ---------- */
+  function teamSub(club, team) {
+    const n = nextGame(club, team);
+    if (n) return 'Next: v ' + n.opp + (n.r ? ' · ' + n.r : '');
+    const c = (CLUBS || []).find((x) => x.slug === club);
+    return c ? c.name : '';
+  }
+  // On an iPhone in Safari (or opened from another home-screen app), suggest pinning the tracker
+  // itself so it opens full screen with no address bar.
+  function installTip() {
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    if (!ios || standalone || store.get('trk.tipDone')) return '';
+    setTimeout(() => { const x = document.getElementById('tipx'); if (x) x.addEventListener('click', () => { store.set('trk.tipDone', 1); x.parentNode.remove(); }); });
+    return '<div class="tip">Full screen at games: tap <b>Share</b> (or <b>⋯</b>) → <b>Add to Home Screen</b>, then open the tracker from that icon.<button type="button" id="tipx" aria-label="Dismiss">✕</button></div>';
+  }
   async function renderTeam(club, team, tok) {
     const here = view;
-    app.innerHTML = header(null, team, 'Team stat tracker') + '<div class="pad muted">Loading…</div>';
+    app.innerHTML = header(null, team, teamSub(club, team)) + '<div class="pad muted">Loading…</div>';
     let data;
     try { data = await api('/team', { token: tok }); } catch (e) { if (!lockedOut(club, team, e)) app.querySelector('.pad').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
     if (here !== view) return;
@@ -170,7 +194,7 @@
         '<div class="grow"><div class="t">' + esc(g.opponent ? 'v ' + g.opponent : 'Game') + '</div><div class="m">' + esc(g.metrics.map((m) => (CAT.byId[m.id] || {}).name).filter(Boolean).join(' · ')) + '</div></div>' +
         (g.status === 'live' ? '<span class="pill live">LIVE</span>' : res.length ? '<span class="pill' + (hit === res.length ? '' : ' miss') + '">' + hit + '/' + res.length + ' goals</span>' : '') + '</a>';
     };
-    app.innerHTML = header(null, team, 'Team stat tracker') + '<div class="pad">' +
+    app.innerHTML = header(null, team, teamSub(club, team)) + installTip() + '<div class="pad">' +
       (live.length ? '<div class="lbl" style="margin-top:4px">Live now</div><div class="card">' + live.map(gameRow).join('') + '</div>' : '') +
       '<a class="btn" href="' + teamHref(club, team) + '/new">＋ Start tracking ' + (nextGame(club, team) ? 'v ' + esc(nextGame(club, team).opp) : 'a game') + '</a>' +
       '<div class="lbl">Games</div><div class="card">' + (done.length ? done.map(gameRow).join('') : '<div class="muted">No finished games yet. Start one at tip-off.</div>') + '</div>' +

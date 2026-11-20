@@ -339,7 +339,8 @@ const plusActive = (c) => !!c && !!c.plus && (!c.plus_until || c.plus_until >= n
 // While testing, only clubs named in TRACKER_CLUBS (wrangler.toml, '*' = every Plus club) get the tracker.
 const trackerClubs = (env) => String(env.TRACKER_CLUBS || '').split(',').map((x) => x.trim()).filter(Boolean);
 const trackerOn = (env, c) => plusActive(c) && (trackerClubs(env).includes('*') || trackerClubs(env).includes(c.slug));
-const cleanTeam = (t) => clean(t, 80).replace(/\s+/g, ' ');
+// A team name never has a query string in it (a mangled tracker link once sent "Team 4?opp=...").
+const cleanTeam = (t) => clean(String(t == null ? '' : t).split('?')[0], 80).replace(/\s+/g, ' ');
 
 async function trackerTeams(env, club) {
   const { results } = await env.DB.prepare('SELECT team, updated_at, locked_until, inherited FROM tracker_teams WHERE club = ? ORDER BY team').bind(club.slug).all();
