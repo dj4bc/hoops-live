@@ -92,13 +92,12 @@ const parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch (e) { retu
 const fileUrl = (key) => (key ? '/files/' + key : null);
 async function getClub(env, slug) { return env.DB.prepare('SELECT * FROM clubs WHERE slug = ?').bind(slug).first(); }
 
-// What the results site sees. Branding and sponsors only go out for clubs with Plus.
+// What the results site sees. Colours go out for every club; logo and sponsors only for clubs with Plus.
 function publicClub(c) {
   const plus = !!c.plus && (!c.plus_until || c.plus_until >= new Date().toISOString().slice(0, 10));
-  const out = { slug: c.slug, name: c.name, short: c.short, match: c.match, plus };
+  const out = { slug: c.slug, name: c.name, short: c.short, match: c.match, plus, colours: parse(c.colours, null) };
   if (plus) {
     out.logo = fileUrl(c.logo);
-    out.colours = parse(c.colours, null);
     const sp = parse(c.sponsors, null);
     if (sp) {
       Object.values(sp.list || {}).forEach((s) => { s.logo = fileUrl(s.logo); });

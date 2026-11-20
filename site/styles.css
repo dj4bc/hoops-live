@@ -512,3 +512,15 @@ a.fn-game:hover { border-color: var(--blue); color: inherit; }
 span.sp-logo, span.sp-cta { cursor: default; }
 .brand { padding-right: 96px; }
 .club-switch { position: absolute; right: 16px; top: 18px; margin: 0; }
+/* Wide screens: the nav shares the header row, so the club button sits after it instead of on top of it. */
+@media (min-width: 900px) {
+  .brand { padding-right: 0; }
+  .main-nav { order: 2; }
+  .club-switch { position: static; order: 3; margin: 0 0 10px 8px; }
+}
+/* BasketballConnect club logos are drawn on white. */
+.cbadge.bc, .brand .cbadge.bc { background: #fff !important; }
+.cbadge.bc img { width: 92%; height: 92%; }
+/* Rounds with no completed games yet are greyed out (still tappable). */
+.tab.future { color: #9AA3B2; background: #F3F5F9; border-style: dashed; font-weight: 500; }
+.tab.future[aria-pressed="true"] { background: #8A94A6; border-color: #8A94A6; border-style: solid; color: #fff; }

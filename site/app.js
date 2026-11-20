@@ -2,6 +2,13 @@
    BasketballConnect (Squadi) live-scores API, then filters them to the chosen club. */
 (function () {
   'use strict';
+// BasketballConnect sometimes leaves a game "STARTED" after the scorer forgets to end it.
+// Treat a game that started more than 4 hours ago as finished.
+function gameStatus(st, startTime, m) {
+  if (st === 'ENDED') return 'final'; // resultStatus is "FINAL" even on future games, so it can't be used
+  if (!st || /POSTPONED|CANCEL|ABANDON/.test(st)) return 'upcoming';
+  return Date.now() - new Date(startTime).getTime() > 4 * 3600e3 ? 'final' : 'live';
+}
 
   const CFG = window.HOOPS_CONFIG;
   const app = document.getElementById('app');
@@ -111,11 +118,12 @@
     return '<img class="logo" src="' + esc(t.logo) + '" alt="" width="' + size + '" height="' + size + '" style="' + box + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'logo blank\',style:\'' + box + '\'}))">';
   }
 
-  // A club's badge: its logo once it has Plus, otherwise its initials in grey.
+  // A club's badge: its own logo (portal or config), else the logo its teams use in BasketballConnect, else initials.
   function clubBadge(c, size) {
     size = size || 40;
     const box = 'width:' + size + 'px;height:' + size + 'px';
-    if (c && c.plus && c.logo) return '<span class="cbadge logo-on" style="' + box + ';background:' + esc((c.colours && c.colours.dark) || '#1E2633') + '"><img src="' + esc(c.logo) + '" alt=""></span>';
+    if (c && c.logo) return '<span class="cbadge logo-on" style="' + box + ';background:' + esc((c.colours && c.colours.dark) || '#1E2633') + '"><img src="' + esc(c.logo) + '" alt=""></span>';
+    if (c && c.bcLogo) return '<span class="cbadge logo-on bc" style="' + box + '"><img src="' + esc(c.bcLogo) + '" alt="" referrerpolicy="no-referrer"></span>';
     const txt = c ? c.initials : '?';
     return '<span class="cbadge' + (c && c.all ? ' all' : '') + '" style="' + box + ';font-size:' + Math.round(size * (txt.length > 2 ? 0.3 : 0.36)) + 'px">' + esc(txt) + '</span>';
   }
@@ -145,7 +153,7 @@
           start: new Date(m.startTime),
           comp,
           postponed: /POSTPONED|CANCEL|ABANDON/.test(st),
-          status: st === 'ENDED' ? 'final' : (st && !/POSTPONED|CANCEL|ABANDON/.test(st) ? 'live' : 'upcoming'),
+          status: gameStatus(st, m.startTime, m),
           t1, t2,
           s1: m.team1Score, s2: m.team2Score,
           r1: m.team1ResultId, r2: m.team2ResultId,
@@ -350,7 +358,7 @@
     const range = fDay.format(round.first) === fDay.format(round.last) ? fDay.format(round.first) : fDay.format(round.first) + ' – ' + fDay.format(round.last);
     let html = '<div class="page-head"><div><div class="eyebrow">' + (round.finals === round.games.length ? 'Completed round' : round.finals ? 'In progress' : 'Upcoming round') + '</div>' +
       '<h1 class="page-title">' + esc(round.name) + '</h1><div class="page-sub">' + esc(range) + ' · ' + round.games.length + ' ' + ourWord() + ' games</div></div>' +
-      '<div class="tabs" role="group" aria-label="Choose round">' + rounds.map((r) => '<button class="tab" type="button" data-round="' + r.seq + '" aria-pressed="' + (r.seq === seq) + '">' + esc(r.name.replace(/^Round\s*/i, 'R')) + '</button>').join('') + '</div></div>';
+      '<div class="tabs" role="group" aria-label="Choose round">' + rounds.map((r) => '<button class="tab' + (r.finals ? '' : ' future') + '" type="button" data-round="' + r.seq + '" aria-pressed="' + (r.seq === seq) + '"' + (r.finals ? '' : ' title="Not played yet"') + '>' + esc(r.name.replace(/^Round\s*/i, 'R')) + '</button>').join('') + '</div></div>';
 
     if (!isAll()) html += '<section class="stats" aria-label="Round summary">' +
       '<div class="stat win"><span class="stat-label">Wins</span><span class="stat-value">' + count('W') + '</span></div>' +
@@ -715,7 +723,7 @@
       const st = (m.matchStatus || '').toUpperCase();
       games.push({ id: m.id, round: rd.name || '', finals: !!m.isFinals || !!m.finalsAlias, alias: m.finalsAlias || '',
         start: new Date(m.startTime), n1: ((m.team1 && m.team1.name) || '').trim(), n2: ((m.team2 && m.team2.name) || '').trim(),
-        s1: m.team1Score, s2: m.team2Score, status: st === 'ENDED' ? 'final' : (st && !/POSTPONED|CANCEL|ABANDON/.test(st) ? 'live' : 'upcoming'),
+        s1: m.team1Score, s2: m.team2Score, status: gameStatus(st, m.startTime, m),
         venue: ((m.venueCourt || {}).venue || {}).shortName || ((m.venueCourt || {}).venue || {}).name || '', court: (m.venueCourt || {}).name || '' });
     }));
     divCache.set(divId, { at: Date.now(), data: games });
@@ -1470,7 +1478,7 @@
     PUSH = plus ? PUSH_BASE.replace(/\/$/, '') : '';
     SP = (plus && c.sponsors) || {};
     const root = document.documentElement.style;
-    const col = plus && c.colours ? c.colours : null;
+    const col = c && !c.all && c.colours ? c.colours : null; // every club gets its colours, Free or Plus
     root.setProperty('--blue', col ? col.primary : '#2A3342');
     root.setProperty('--navy', col ? col.dark : '#1E2633');
     root.setProperty('--red', col ? (col.accent || '#F28C28') : '#F28C28');
@@ -1512,8 +1520,9 @@
         const t = m[k]; if (!t || !t.name || /^bye$/i.test(t.name.trim())) return;
         const c = clubOf(t.name); if (!c) return;
         const x = out.get(c.slug); x.teams.add(t.id);
-        if (st === 'ENDED') { if (m[r] === 1) x.W++; else if (m[r] === 2) x.L++; }
-        else if (st && !/POSTPONED|CANCEL|ABANDON/.test(st)) x.live++;
+        const gs = gameStatus(st, m.startTime, m);
+        if (gs === 'final') { if (m[r] === 1) x.W++; else if (m[r] === 2) x.L++; }
+        else if (gs === 'live') x.live++;
         const ts = Date.parse(m.startTime);
         if (!st && ts > now - 3 * 3600e3 && ts < now + 7 * 864e5) x.week++;
       });
@@ -1598,7 +1607,8 @@
       if (Array.isArray(j.clubs) && j.clubs.length) {
         const base = new Map((CFG.clubs || []).map((c) => [c.slug, c]));
         const abs = (u) => (u && !/^https?:/.test(u) ? PORTAL + u : u);
-        j.clubs.forEach((c) => { c.logo = abs(c.logo); if (c.sponsors && c.sponsors.list) Object.values(c.sponsors.list).forEach((sp) => { sp.logo = abs(sp.logo); }); });
+        // A blank field in the portal must not wipe out the built-in setting.
+        j.clubs.forEach((c) => { Object.keys(c).forEach((k) => { if (c[k] == null || c[k] === '') delete c[k]; }); if (c.logo) c.logo = abs(c.logo); if (c.sponsors && c.sponsors.list) Object.values(c.sponsors.list).forEach((sp) => { sp.logo = abs(sp.logo); }); });
         CLUBS = j.clubs.map((c) => prepClub(Object.assign({}, base.get(c.slug) || {}, c)));
       }
     } catch (e) { /* use the built-in clubs */ }
@@ -1623,10 +1633,26 @@
     return ok;
   }
 
+  // Each club's logo as its teams use it in BasketballConnect (the most common one).
+  function setBcLogos() {
+    const tally = new Map();
+    RAW.forEach(({ json }) => (json.rounds || []).forEach((rd) => (rd.matches || []).forEach((m) => [m.team1, m.team2].forEach((t) => {
+      if (!t || !/^https:\/\//.test(t.logoUrl || '')) return;
+      const c = clubOf(t.name || ''); if (!c) return;
+      const k = t.logoUrl.split('?')[0], x = tally.get(c.slug) || new Map();
+      const e = x.get(k) || { url: t.logoUrl, n: 0 }; e.n++; x.set(k, e); tally.set(c.slug, x);
+    }))));
+    const had = CLUBS.map((c) => c.bcLogo).join();
+    CLUBS.forEach((c) => { const x = tally.get(c.slug); c.bcLogo = x ? [...x.values()].sort((a, b) => b.n - a.n)[0].url : ''; });
+    if (CLUB && !CLUB.all) CLUB.bcLogo = (clubBySlug(CLUB.slug) || {}).bcLogo || '';
+    if (had !== CLUBS.map((c) => c.bcLogo).join()) renderHeader();
+  }
+
   async function load(silent) {
     try {
       const wasLive = new Set(DATA ? DATA.games.filter((g) => g.status === 'live').map((g) => g.id) : []);
       RAW = await fetchAll();
+      setBcLogos();
       DATA = CLUB ? normalise(RAW) : null;
       if (DATA) DATA.games.forEach((g) => { if (wasLive.has(g.id) && g.status === 'final' && !justFinal.has(g.id)) { justFinal.set(g.id, Date.now()); sirenQueue.add(g.id); } });
       // Opened by tapping a full-time alert: play the siren for that game once, as if you had watched it finish.

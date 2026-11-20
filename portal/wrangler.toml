@@ -2,6 +2,7 @@ name = "hoops-portal"
 routes = [{ pattern = "portal.adamforb.es", custom_domain = true }]
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
+workers_dev = false
 
 # The portal's own pages (login, sponsors, branding) are served from public/.
 [assets]
@@ -12,7 +13,7 @@ run_worker_first = ["/api/*", "/files/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "hoops-portal"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "4dcd6eac-d259-4724-b695-f2c5713f59dc"
 
 [[r2_buckets]]
 binding = "FILES"
