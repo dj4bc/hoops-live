@@ -23,4 +23,6 @@ bucket_name = "hoops-portal-files"
 # Sites allowed to call the public API and send sponsor counts.
 SITE_ORIGINS = "https://hoops.adamforb.es,https://lions.adamforb.es,https://panthers.adamforb.es,http://localhost:8811"
 SITE_URL = "https://hoops.adamforb.es"
+# Clubs that get the team stat tracker while it is being tested ("*" = every Plus club).
+TRACKER_CLUBS = "lions"
 # ADMIN_SETUP_TOKEN is a secret: wrangler secret put ADMIN_SETUP_TOKEN

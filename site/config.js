@@ -11,6 +11,8 @@ window.HOOPS_CONFIG = {
   // Live fouls (Linode scraper) and game alerts. Only used for clubs with Plus.
   foulsBase: 'https://fouls.adamforb.es',
   pushBase: 'https://fouls.adamforb.es/push',
+  // Clubs whose team pages show the team stat tracker button. Empty while it is tested on Lions Den.
+  trackerClubs: [],
   timeZone: 'Australia/Adelaide',
   liveRefreshMs: 60000,
   // Competitions. The whole competition is loaded once and filtered by club in the browser.
