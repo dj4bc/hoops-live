@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS tracker_games (
   scorer_key TEXT NOT NULL,   -- in the scorer's link; no account needed
   status TEXT NOT NULL DEFAULT 'live',
   created_at INTEGER NOT NULL,
-  finished_at INTEGER
+  finished_at INTEGER,
+  deleted_at INTEGER          -- set by Delete game; restorable for a day, then removed
 );
 CREATE INDEX IF NOT EXISTS tracker_games_team ON tracker_games (club, team, created_at);
 CREATE TABLE IF NOT EXISTS tracker_taps (

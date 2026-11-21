@@ -334,6 +334,7 @@ async function currentUser(req, env) {
 const TRK_SESSION_DAYS = 3;          // stays unlocked over a weekend
 const TRK_MAX_FAILS = 5, TRK_LOCK_MIN = 15;
 const TRK_SCORER_HOURS = 48;         // scorer links stop working after this
+const TRK_UNDELETE_HOURS = 24;       // a deleted game can be restored by the coach for this long
 const METRIC_BY_ID = Object.fromEntries(METRICS.map((x) => [x.id, x]));
 const plusActive = (c) => !!c && !!c.plus && (!c.plus_until || c.plus_until >= new Date().toISOString().slice(0, 10));
 // While testing, only clubs named in TRACKER_CLUBS (wrangler.toml, '*' = every Plus club) get the tracker.
@@ -399,8 +400,19 @@ async function tracker(req, env, url) {
   let mm;
   if ((mm = p.match(/^\/games\/([a-z0-9]{10})(\/[a-z]+)?$/))) {
     const game = await env.DB.prepare('SELECT * FROM tracker_games WHERE id = ?').bind(mm[1]).first();
-    if (!game) fail(404, 'Game not found');
+    const keep = Date.now() - TRK_UNDELETE_HOURS * 3600e3;
+    if (!game || (game.deleted_at && game.deleted_at < keep)) fail(404, 'Game not found');
     const sub = mm[2] || '';
+    if (game.deleted_at) {
+      // Deleted games stay for a day so a slip of the thumb can be undone, but only the coach sees them.
+      const who = await trackerAuth(req, env, true);
+      const coach = who && who.club === game.club && who.team === game.team;
+      if (coach && sub === '/restore' && m === 'POST') {
+        await env.DB.prepare('UPDATE tracker_games SET deleted_at = NULL WHERE id = ?').bind(game.id).run();
+        return gameState(env, Object.assign({}, game, { deleted_at: null }), 'coach');
+      }
+      fail(410, coach ? 'This game was deleted. Restore it from your team page.' : 'This game was deleted. The coach can restore it for ' + TRK_UNDELETE_HOURS + ' hours.');
+    }
     const who = await gameAccess(req, env, url, game, sub === '' && m === 'GET');
     if (sub === '' && m === 'GET') return gameState(env, game, who);
     if (sub === '/taps' && m === 'POST') return gameTaps(req, env, game, who);
@@ -415,8 +427,14 @@ async function tracker(req, env, url) {
     }
     if (sub === '/delete' && m === 'POST') {
       if (who !== 'coach') fail(403, 'Only the coach can delete a game');
-      await env.DB.batch([env.DB.prepare('DELETE FROM tracker_taps WHERE game = ?').bind(game.id), env.DB.prepare('DELETE FROM tracker_games WHERE id = ?').bind(game.id)]);
-      return { ok: true };
+      const now = Date.now(), gone = now - TRK_UNDELETE_HOURS * 3600e3;
+      await env.DB.batch([
+        env.DB.prepare('UPDATE tracker_games SET deleted_at = ? WHERE id = ?').bind(now, game.id),
+        // Games deleted more than a day ago are removed for good.
+        env.DB.prepare('DELETE FROM tracker_taps WHERE game IN (SELECT id FROM tracker_games WHERE deleted_at < ?)').bind(gone),
+        env.DB.prepare('DELETE FROM tracker_games WHERE deleted_at < ?').bind(gone)
+      ]);
+      return { ok: true, restoreHours: TRK_UNDELETE_HOURS };
     }
   }
   fail(404, 'Not found');
@@ -470,12 +488,15 @@ async function trackerUnlock(req, env) {
 
 // Every game for the team, with totals per metric, for the game list and the season trends.
 async function trackerTeam(env, s) {
-  const { results: games } = await env.DB.prepare('SELECT id, opponent, game_date, metrics, status, created_at FROM tracker_games WHERE club = ? AND team = ? ORDER BY created_at DESC LIMIT 60').bind(s.club, s.team).all();
+  const { results: games } = await env.DB.prepare('SELECT id, opponent, game_date, metrics, status, created_at FROM tracker_games WHERE club = ? AND team = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 60').bind(s.club, s.team).all();
   const { results: rows } = await env.DB.prepare('SELECT t.game, t.metric, t.val, COUNT(*) AS n FROM tracker_taps t JOIN tracker_games g ON g.id = t.game ' +
-    'WHERE g.club = ? AND g.team = ? AND t.deleted = 0 GROUP BY t.game, t.metric, t.val').bind(s.club, s.team).all();
+    'WHERE g.club = ? AND g.team = ? AND g.deleted_at IS NULL AND t.deleted = 0 GROUP BY t.game, t.metric, t.val').bind(s.club, s.team).all();
+  const { results: binned } = await env.DB.prepare('SELECT id, opponent, game_date, deleted_at FROM tracker_games WHERE club = ? AND team = ? AND deleted_at >= ? ORDER BY deleted_at DESC')
+    .bind(s.club, s.team, Date.now() - TRK_UNDELETE_HOURS * 3600e3).all();
   const tot = {};
   rows.forEach((r) => { const g = tot[r.game] || (tot[r.game] = {}); const x = g[r.metric] || (g[r.metric] = {}); x[r.val] = r.n; });
-  return { club: s.club, team: s.team, games: games.map((g) => ({ id: g.id, opponent: g.opponent, date: g.game_date, metrics: parse(g.metrics, []), status: g.status, createdAt: g.created_at, totals: tot[g.id] || {} })) };
+  return { club: s.club, team: s.team, games: games.map((g) => ({ id: g.id, opponent: g.opponent, date: g.game_date, metrics: parse(g.metrics, []), status: g.status, createdAt: g.created_at, totals: tot[g.id] || {} })),
+    deleted: binned.map((g) => ({ id: g.id, opponent: g.opponent, date: g.game_date, deletedAt: g.deleted_at, until: g.deleted_at + TRK_UNDELETE_HOURS * 3600e3 })) };
 }
 
 async function trackerNewGame(req, env, s) {

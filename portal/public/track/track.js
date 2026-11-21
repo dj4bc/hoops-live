@@ -199,8 +199,15 @@
       '<a class="btn" href="' + teamHref(club, team) + '/new">＋ Start tracking ' + (nextGame(club, team) ? 'v ' + esc(nextGame(club, team).opp) : 'a game') + '</a>' +
       '<div class="lbl">Games</div><div class="card">' + (done.length ? done.map(gameRow).join('') : '<div class="muted">No finished games yet. Start one at tip-off.</div>') + '</div>' +
       trends(done.slice().reverse()) +
+      ((data.deleted || []).length ? '<div class="lbl">Recently deleted</div><div class="card">' + data.deleted.map((g) => '<div class="gl bin"><div class="grow"><div class="t">' + esc(g.opponent ? 'v ' + g.opponent : 'Game') + ' · ' + esc(fmtDay(g.date)) + '</div>' +
+        '<div class="m">Gone for good in ' + esc(leftText(g.until)) + '</div></div><button class="btn o sm" type="button" data-restore="' + esc(g.id) + '">Restore</button></div>').join('') + '</div>' : '') +
       '<p class="muted" style="font-size:13px">Team totals only, no player names. Only people with the team PIN can see this page.</p>' +
       '<button class="btn o sm" id="lock" type="button">Lock this phone</button></div>';
+    app.querySelectorAll('[data-restore]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await api('/games/' + b.dataset.restore + '/restore', { method: 'POST', token: tok }); toast('Game restored'); renderTeam(club, team, tok); }
+      catch (e) { b.disabled = false; toast(e.message); }
+    }));
     app.querySelector('#lock').addEventListener('click', async () => {
       await api('/lock', { method: 'POST', token: tok }).catch(() => {});
       store.del(tokKey(club, team)); route();
@@ -454,6 +461,7 @@
     setTimeout(sync, 500);
   }
 
+  function leftText(until) { const h = Math.max(0, (until - Date.now()) / 3600e3); return h >= 1 ? Math.floor(h) + ' h' : Math.max(1, Math.round(h * 60)) + ' min'; }
   function sheet(html) {
     const s = document.createElement('div'); s.className = 'sheet'; s.innerHTML = '<div>' + html + '</div>';
     s.addEventListener('click', (e) => { if (e.target === s || e.target.closest('[data-close]')) s.remove(); });
@@ -501,17 +509,23 @@
           '<td><b>' + (r.def.tap === 'made_missed' ? r.v.made + '/' + r.v.att : r.v.n) + '</b></td></tr>').join('') + '</tbody></table></div>' : '') +
       '<button class="btn" id="copy" type="button">Copy team summary</button><p class="muted" style="font-size:13px">Team totals only, no names. Paste it into the team chat.</p>' +
       (ctx.key ? '' : '<div class="row" style="margin-top:8px"><a class="btn o sm" href="' + teamHref(ctx.club, ctx.team) + '/g/' + game.id + '">Fix taps</a>' +
-        (game.status === 'live' ? '' : '<button class="btn o sm" id="reopen" type="button">Reopen for scorer</button>') + '<button class="btn danger sm" id="del" type="button">Delete game</button></div>') + '</div>';
+        (game.status === 'live' ? '' : '<button class="btn o sm" id="reopen" type="button">Reopen for scorer</button>') + '</div>' +
+        '<div class="dz"><button class="btn danger sm" id="del" type="button">Delete game…</button></div>') + '</div>';
     app.querySelector('#copy').addEventListener('click', () => { navigator.clipboard.writeText(text).then(() => toast('Copied')).catch(() => sheet('<h3>Team summary</h3><div class="linkbox" style="white-space:pre-wrap">' + esc(text) + '</div><button class="btn" data-close>Done</button>')); });
     const ro = app.querySelector('#reopen');
     if (ro) ro.addEventListener('click', async () => { await api('/games/' + game.id + '/reopen', { method: 'POST', token: ctx.tok }); location.hash = teamHref(ctx.club, ctx.team) + '/g/' + game.id; });
     const del = app.querySelector('#del');
     if (del) {
-      let arm = false;
-      del.addEventListener('click', async () => {
-        if (!arm) { arm = true; del.textContent = 'Tap again to delete'; setTimeout(() => { arm = false; if (del.isConnected) del.textContent = 'Delete game'; }, 3000); return; }
-        await api('/games/' + game.id + '/delete', { method: 'POST', token: ctx.tok });
-        location.hash = teamHref(ctx.club, ctx.team);
+      del.addEventListener('click', () => {
+        const sh = sheet('<h3>Delete this game?</h3><p>' + esc((game.opponent ? 'v ' + game.opponent + ', ' : '') + fmtDay(game.date)) + '. It comes off your games and trends, and the scorer link stops working. You can restore it from your team page for 24 hours.</p>' +
+          '<div class="row"><button class="btn o" data-close type="button">Keep it</button><button class="btn warn" id="delyes" type="button">Delete</button></div>');
+        sh.querySelector('#delyes').addEventListener('click', async (e) => {
+          e.target.disabled = true;
+          try { await api('/games/' + game.id + '/delete', { method: 'POST', token: ctx.tok }); }
+          catch (err) { sh.remove(); toast(err.message); return; }
+          sh.remove(); toast('Game deleted. Restore it from Recently deleted.');
+          location.hash = teamHref(ctx.club, ctx.team);
+        });
       });
     }
   }
