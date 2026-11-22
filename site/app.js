@@ -61,7 +61,8 @@ function gameStatus(st, startTime, m) {
   let CLUBS = (CFG.clubs || []).map(prepClub);
   const clubBySlug = (slug) => CLUBS.find((c) => c.slug === slug) || null;
   const clubOf = (name) => (name ? CLUBS.find((c) => c.re.test(name.trim())) || null : null);
-  const ALL = { slug: 'all', all: true, name: 'All games', short: '', initials: 'ALL' };
+  // The All games view wears the Barossa Settlers (BVABA) green and gold and their ball logo.
+  const ALL = { slug: 'all', all: true, name: 'All games', short: '', initials: 'ALL', logo: 'clubs/settlers.png', colours: { primary: '#0B6B34', dark: '#064523', accent: '#F9B129', ink: '#2E2200' } };
   const isAll = () => !!(CLUB && CLUB.all);
   const plusOn = () => !!(CLUB && CLUB.plus);
   const ourWord = () => (isAll() ? '' : CLUB.short);
@@ -1495,10 +1496,11 @@ function gameStatus(st, startTime, m) {
     PUSH = plus ? PUSH_BASE.replace(/\/$/, '') : '';
     SP = (plus && c.sponsors) || {};
     const root = document.documentElement.style;
-    const col = c && !c.all && c.colours ? c.colours : null; // every club gets its colours, Free or Plus
+    const col = c && c.colours ? c.colours : ALL.colours; // every club gets its colours, Free or Plus. All games and the club picker wear Settlers green and gold
     root.setProperty('--blue', col ? col.primary : '#2A3342');
     root.setProperty('--navy', col ? col.dark : '#1E2633');
     root.setProperty('--red', col ? (col.accent || '#F28C28') : '#F28C28');
+    if (col && col.ink) root.setProperty('--accent-ink', col.ink); else root.removeProperty('--accent-ink');
     const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = col ? col.primary : '#1E2633';
     renderHeader();
     renderSponsorFrame();
@@ -1517,7 +1519,7 @@ function gameStatus(st, startTime, m) {
     const c = CLUB;
     const title = c ? (c.all ? 'ALL GAMES' : c.name.toUpperCase()) : CFG.siteName.toUpperCase();
     const sub = c ? (c.all ? CFG.assocName + ' · ' + CFG.seasonLabel : CFG.seasonLabel + (c.plus ? '' : '')) : CFG.seasonLabel + ' · ' + CLUBS.length + ' clubs';
-    brand.innerHTML = (c ? clubBadge(c, 46) : '<span class="cbadge site" style="width:46px;height:46px">' + esc(CFG.shortName.split(/\s+/).map((w) => w[0]).join('').slice(0, 2)) + '</span>') +
+    brand.innerHTML = clubBadge(c || ALL, 46) +
       '<span class="brand-text"><span class="brand-title">' + esc(title) + (c && c.plus ? ' <span class="plus-pill">PLUS</span>' : '') + '</span><span class="brand-sub" id="season-label">' + esc(sub) + '</span></span>';
     brand.setAttribute('href', '#/');
     let sw = document.getElementById('club-switch');
@@ -1557,7 +1559,7 @@ function gameStatus(st, startTime, m) {
     };
     const sorted = CLUBS.slice().filter((c) => stats.get(c.slug).teams.size).sort((a, b) => stats.get(b.slug).teams.size - stats.get(a.slug).teams.size);
     let html = '<div class="picker">' +
-      '<button type="button" class="pick-all" data-pick="all"><span class="cbadge all" style="width:56px;height:56px">ALL</span><span class="pick-main"><b>All games</b><span>Every club and division · ' + esc(CFG.assocName) + '</span></span><span class="go">›</span></button>';
+      '<button type="button" class="pick-all" data-pick="all">' + clubBadge(ALL, 56) + '<span class="pick-main"><b>All games</b><span>Every club and division · ' + esc(CFG.assocName) + '</span></span><span class="go">›</span></button>';
     if (mine) {
       const x = stats.get(mine.slug);
       html += '<h2 class="section-title">Your club</h2><button type="button" class="pick-mine" data-pick="' + esc(mine.slug) + '"' + (mine.plus && mine.colours ? ' style="background:' + esc(mine.colours.dark) + '"' : '') + '>' + clubBadge(mine, 60) +
