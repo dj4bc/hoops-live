@@ -524,3 +524,12 @@ span.sp-logo, span.sp-cta { cursor: default; }
 /* Rounds with no completed games yet are greyed out (still tappable). */
 .tab.future { color: #9AA3B2; background: #F3F5F9; border-style: dashed; font-weight: 500; }
 .tab.future[aria-pressed="true"] { background: #8A94A6; border-color: #8A94A6; border-style: solid; color: #fff; }
+
+/* Results: one card per division, grade in the title, ladder opens in the card */
+.card-head h2 .grade { color: var(--red); }
+.card-head .head-r { display: flex; align-items: center; gap: 10px; }
+.lad-btn { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #CBD3E1; background: #fff; color: var(--blue); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.lad-btn[aria-expanded="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.div-ladder { border-bottom: 1px solid var(--line); }
+.div-ladder .ladder th { background: #fff; }
+.div-ladder > .fine { padding: 10px 16px; }

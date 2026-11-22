@@ -22,7 +22,7 @@ function gameStatus(st, startTime, m) {
   let RAW = null;         // every competition's raw rounds, as loaded
   let CLUB = null;        // the chosen club, or { slug: 'all', all: true }
   let refreshTimer = null;
-  const ui = { age: 'All', sex: 'All', round: null, club: 'All' };
+  const ui = { age: 'All', sex: 'All', round: null, club: 'All', lad: new Set() };
 
   /* ---------- helpers ---------- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -204,6 +204,9 @@ function gameStatus(st, startTime, m) {
   }
 
   const groupName = (t) => (t.age + ' ' + t.sex).trim();
+  // The grade part of a division name: "U14 Boys B/2" -> "B/2", "A Men" -> "A". Empty when the division is just the age group.
+  const AGE_WORD = /^(u\d+(\/\d+)?|boys|girls|men|mens|men's|women|womens|women's|senior|seniors|open|mixed|grade)$/i;
+  const gradeOf = (g) => shortDivision(g.division).split(/\s+/).filter((w) => w && !AGE_WORD.test(w)).join(' ');
   const ageNum = (a) => (a === 'Senior' ? 90 : a === 'Reserves' ? 91 : parseInt(String(a).replace(/\D/g, ''), 10) || 0);
   const teamSort = (a, b) => ageNum(a.age) - ageNum(b.age) || a.gender.localeCompare(b.gender) || a.short.localeCompare(b.short, undefined, { numeric: true });
 
@@ -353,7 +356,7 @@ function gameStatus(st, startTime, m) {
     const count = (r) => views.filter((v) => v.res === r).length;
     let best = null;
     views.forEach((v) => { if (v.res === 'W' && (!best || v.su - v.sth > best.su - best.sth)) best = v; });
-    const ages = Array.from(new Set(DATA.games.map((g) => view(g).us.age))).sort((a, b) => ageNum(a) - ageNum(b));
+    const ages = Array.from(new Set(DATA.games.map((g) => view(g).us.age).filter(Boolean))).sort((a, b) => ageNum(a) - ageNum(b));
 
     const range = fDay.format(round.first) === fDay.format(round.last) ? fDay.format(round.first) : fDay.format(round.first) + ' – ' + fDay.format(round.last);
     let html = '<div class="page-head"><div><div class="eyebrow">' + (round.finals === round.games.length ? 'Completed round' : round.finals ? 'In progress' : 'Upcoming round') + '</div>' +
@@ -368,19 +371,33 @@ function gameStatus(st, startTime, m) {
 
     html += filterChips(ages);
 
+    // One card per BasketballConnect division, so A/1, B/2 and C/3 of an age group no longer share a card.
     const groups = new Map();
-    games.slice().sort((a, b) => teamSort(view(a).us, view(b).us)).forEach((g) => {
-      const k = groupName(view(g).us);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(g);
+    games.forEach((g) => {
+      const us = view(g).us;
+      const k = g.divisionId ? 'd' + g.divisionId : groupName(us) + '|' + g.division;
+      if (!groups.has(k)) groups.set(k, { key: k, name: groupName(us), grade: gradeOf(g), lead: us, list: [], g });
+      const grp = groups.get(k);
+      grp.list.push(g);
+      if (!grp.g.divisionId && g.divisionId) grp.g = g;
+      if (!g.bye && !g.finals && grp.g.finals) grp.g = g;
     });
     if (!groups.size) return html + '<div class="notice">No games match these filters.</div>';
+    const cards = Array.from(groups.values()).sort((a, b) => ageNum(a.lead.age) - ageNum(b.lead.age) || a.lead.gender.localeCompare(b.lead.gender) || a.name.localeCompare(b.name) || a.grade.localeCompare(b.grade, undefined, { numeric: true }));
     html += '<section class="grid">';
-    groups.forEach((list, name) => {
+    cards.forEach((c) => {
+      const list = c.list.slice().sort((a, b) => (a.bye - b.bye) || a.start - b.start || teamSort(view(a).us, view(b).us));
       const vs = list.map((g) => view(g));
       const w = vs.filter((v) => v.res === 'W').length, l = vs.filter((v) => v.res === 'L').length;
-      html += '<article class="card"><div class="card-head"><h2>' + esc(name) + '</h2><span class="meta">' + (w + l ? w + 'W · ' + l + 'L' : '') + '</span></div>' +
-        list.map((g) => gameRow(g)).join('') + '</article>';
+      // The ladder opens in the card. It is keyed by one of our teams in the division (only highlighted in a club view).
+      const lt = (vs.find((v) => !v.g.bye && v.g.divisionId) || {}).us;
+      const canLad = !!(lt && compKey(c.g.comp));
+      const open = canLad && ui.lad.has(c.key);
+      html += '<article class="card"><div class="card-head"><h2>' + esc(c.name) + (c.grade ? ' <span class="grade">' + esc(c.grade) + '</span>' : '') + '</h2>' +
+        '<span class="head-r">' + (w + l ? '<span class="meta">' + w + 'W · ' + l + 'L</span>' : '') +
+        (canLad ? '<button class="lad-btn" type="button" data-lad="' + esc(c.key) + '" aria-expanded="' + open + '">Ladder <span aria-hidden="true">' + (open ? '▴' : '▾') + '</span></button>' : '') + '</span></div>' +
+        (open ? '<div class="ladder-card div-ladder" data-ladder="' + lt.id + '"' + (isAll() ? ' data-plain="1"' : '') + '><div class="loading small"><span class="spinner" aria-hidden="true"></span> Loading ladder…</div></div>' : '') +
+        list.map((g) => gameRow(g, { showDivision: false })).join('') + '</article>';
     });
     return html + '</section>';
   }
@@ -405,7 +422,7 @@ function gameStatus(st, startTime, m) {
 
   function pageTeams() {
     const allTeams = Array.from(DATA.teams.values()).sort(teamSort);
-    const ages = Array.from(new Set(allTeams.map((t) => t.age))).sort((a, b) => ageNum(a) - ageNum(b));
+    const ages = Array.from(new Set(allTeams.map((t) => t.age).filter(Boolean))).sort((a, b) => ageNum(a) - ageNum(b));
     const teams = allTeams.filter((t) => (ui.age === 'All' || t.age === ui.age) && (ui.sex === 'All' || t.gender === ui.sex));
     const groups = new Map();
     teams.forEach((t) => { const k = groupName(t); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
@@ -673,7 +690,7 @@ function gameStatus(st, startTime, m) {
   async function hydrateLadder(el) {
     const id = parseInt(el.dataset.ladder, 10);
     const wrap = el.closest('[data-ladder-wrap]');
-    const drop = () => { if (wrap) wrap.remove(); else el.remove(); };
+    const drop = () => { if (el.classList.contains('div-ladder')) el.innerHTML = '<p class="fine">No ladder published for this division yet.</p>'; else if (wrap) wrap.remove(); else el.remove(); };
     const tgs = teamGames(id).slice().reverse();
     // Pool games set the ladder; finals and cross-grade games sit in their own divisions.
     const g = tgs.find((x) => x.divisionId && !x.bye && !x.finals && /^round\s*\d+/i.test(x.round)) || tgs.find((x) => x.divisionId && !x.finals) || tgs.find((x) => x.divisionId);
@@ -694,7 +711,7 @@ function gameStatus(st, startTime, m) {
     const fx = fin ? finalsModel(fin, rows) : null;
     el.innerHTML = '<table class="ladder"><thead><tr><th class="ld-pos">#</th><th class="ld-team">Team</th><th>P</th><th>W</th><th>L</th>' + (hasD ? '<th>D</th>' : '') + '<th>%</th><th class="ld-pts">Pts</th></tr></thead><tbody>' +
       rows.map((r, i) => {
-        const cls = [r.id === id ? 'me' : isLions(r.name || '') ? 'club' : '', fx && fx.cut && i === fx.cut ? 'ld-cut' : ''].filter(Boolean).join(' ');
+        const cls = [r.id === id && !el.dataset.plain ? 'me' : isLions(r.name || '') ? 'club' : '', fx && fx.cut && i === fx.cut ? 'ld-cut' : ''].filter(Boolean).join(' ');
         const f = form.get(r.id) || [];
         const seed = fx && i < fx.spots ? '<span class="ld-seed">' + fx.firstLabel + '</span>' : '';
         return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td class="ld-pos">' + (r.rk || i + 1) + '</td><td class="ld-team"><span class="ld-name">' + esc(r.name) + seed + '</span>' + (f.length ? '<span class="ld-form" aria-label="Last results">' + f.map(dot).join('') + '</span>' : '') + '</td>' +
@@ -845,8 +862,7 @@ function gameStatus(st, startTime, m) {
   }
   async function hydrateStats() {
     if (app.querySelector('.live-card [data-tick]')) pollLiveCards();
-    const ladderEl = app.querySelector('[data-ladder]');
-    if (ladderEl) hydrateLadder(ladderEl);
+    app.querySelectorAll('[data-ladder]').forEach((el) => hydrateLadder(el));
     const foulsEl = app.querySelector('[data-fouls]');
     if (foulsEl) hydrateFouls(foulsEl);
     const wormEl = app.querySelector('[data-worm]');
@@ -1430,6 +1446,7 @@ function gameStatus(st, startTime, m) {
     if (b.dataset.age != null) { ui.age = b.dataset.age; route(); return; }
     if (b.dataset.clubchip != null) { ui.club = b.dataset.clubchip; route(); return; }
     if (b.dataset.sex != null) { ui.sex = b.dataset.sex; route(); return; }
+    if (b.dataset.lad != null) { const k = b.dataset.lad; if (ui.lad.has(k)) ui.lad.delete(k); else ui.lad.add(k); route.sig = null; route(); return; }
     if (b.dataset.bell != null) {
       b.disabled = true;
       toggleBell(parseInt(b.dataset.bell, 10))
