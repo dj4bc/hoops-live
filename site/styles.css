@@ -492,6 +492,7 @@ a.fn-game:hover { border-color: var(--blue); color: inherit; }
 .picker .section-title { margin: 10px 0 0; }
 .pick-all, .pick-mine, .pick-row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; }
 .pick-all, .pick-mine { background: #1E2633; color: #fff; border-radius: 16px; padding: 14px 16px; }
+.pick-all { background: #064523; }
 .pick-mine { background: #071648; }
 .pick-all .go, .pick-mine .go { margin-left: auto; font-size: 28px; color: #B7C0CE; }
 .pick-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
