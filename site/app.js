@@ -278,7 +278,7 @@ function gameStatus(st, startTime, m) {
 
   function pageHome() {
     const now = Date.now();
-    const ages = Array.from(new Set(Array.from(DATA.teams.values()).map((t) => t.age))).sort((a, b) => ageNum(a) - ageNum(b));
+    const ages = Array.from(new Set(Array.from(DATA.teams.values()).map((t) => t.age).filter(Boolean))).sort((a, b) => ageNum(a) - ageNum(b));
     const games = DATA.games.filter(gameMatches);
     const justDone = (g) => g.status === 'final' && justFinal.has(g.id) && now - justFinal.get(g.id) < 15 * 60e3;
     const live = games.filter((g) => g.status === 'live' || justDone(g));
