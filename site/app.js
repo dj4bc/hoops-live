@@ -1595,6 +1595,7 @@ function gameStatus(st, startTime, m) {
   function renderPicker() {
     const stats = clubStats();
     const mine = clubBySlug(store.get(STORE_CLUB) || '');
+    const indMap = independents();
     const row = (c) => {
       const x = stats.get(c.slug);
       const sub = x.teams.size + (x.teams.size === 1 ? ' team' : ' teams') + (x.live ? ' · ' + x.live + ' live now' : x.week ? ' · ' + x.week + (x.week === 1 ? ' game' : ' games') + ' this week' : '');
@@ -1605,12 +1606,13 @@ function gameStatus(st, startTime, m) {
     let html = '<div class="picker">' +
       '<button type="button" class="pick-all" data-pick="all">' + clubBadge(ALL, 56) + '<span class="pick-main"><b>All games</b><span>Every club and division · ' + esc(CFG.assocName) + '</span></span><span class="go">›</span></button>';
     if (mine) {
-      const x = stats.get(mine.slug);
-      html += '<h2 class="section-title">Your club</h2><button type="button" class="pick-mine" data-pick="' + esc(mine.slug) + '"' + (mine.plus && mine.colours ? ' style="background:' + esc(mine.colours.dark) + '"' : '') + '>' + clubBadge(mine, 60) +
-        '<span class="pick-main"><b>' + esc(mine.name) + '</b><span>' + x.teams.size + ' teams' + (x.week ? ' · ' + x.week + ' games this week' : '') + '</span></span><span class="go">›</span></button>';
+      const x = stats.get(mine.slug) || indMap.get(mine.slug) || { teams: new Set(), week: 0 };
+      const tn = x.teams ? x.teams.size + (x.teams.size === 1 ? ' team' : ' teams') : 'Independent team';
+      html += '<h2 class="section-title">' + (mine.independent ? 'Your team' : 'Your club') + '</h2><button type="button" class="pick-mine" data-pick="' + esc(mine.slug) + '"' + (mine.plus && mine.colours ? ' style="background:' + esc(mine.colours.dark) + '"' : '') + '>' + clubBadge(mine, 60) +
+        '<span class="pick-main"><b>' + esc(mine.name) + '</b><span>' + tn + (x.week ? ' · ' + x.week + (x.week === 1 ? ' game' : ' games') + ' this week' : '') + '</span></span><span class="go">›</span></button>';
     }
     html += '<h2 class="section-title">All clubs</h2><div class="card pick-list">' + sorted.map(row).join('') + '</div>';
-    const ind = Array.from(independents().values()).sort((a, b) => a.division.localeCompare(b.division) || a.club.name.localeCompare(b.club.name));
+    const ind = Array.from(indMap.values()).sort((a, b) => a.division.localeCompare(b.division) || a.club.name.localeCompare(b.club.name));
     if (ind.length) {
       const irow = (x) => {
         const c = x.club;
