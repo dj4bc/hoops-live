@@ -59,8 +59,52 @@ function gameStatus(st, startTime, m) {
     return c;
   }
   let CLUBS = (CFG.clubs || []).map(prepClub);
-  const clubBySlug = (slug) => CLUBS.find((c) => c.slug === slug) || null;
   const clubOf = (name) => (name ? CLUBS.find((c) => c.re.test(name.trim())) || null : null);
+
+  // Independent teams: teams that belong to no club (mostly open-age seniors). Each one can be
+  // picked like a club, with the slug "team-<team name>", e.g. ?c=team-predators-a-men.
+  const slugify = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const PLACEHOLDER = /^(bye|tba|\d+|[LW](SF|PF|GF|QF|EF|F)\s*\d*)$/i;
+  const INDEP = new Map();
+  function indepClub(slug) {
+    if (INDEP.has(slug)) return INDEP.get(slug);
+    const key = slug.slice(5);
+    const name = key.split('-').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Team';
+    const c = prepClub({ slug, name, short: name, independent: true });
+    c.re = { test: (n) => slugify(n) === key };
+    INDEP.set(slug, c);
+    return c;
+  }
+  const clubBySlug = (slug) => CLUBS.find((c) => c.slug === slug) || (/^team-./.test(slug || '') ? indepClub(slug) : null);
+  // Every independent team in the loaded data, with its season record, and the real name and logo.
+  function independents() {
+    const out = new Map();
+    if (!RAW) return out;
+    const now = Date.now();
+    RAW.forEach(({ json }) => (json.rounds || []).forEach((rd) => (rd.matches || []).forEach((m) => {
+      const st = (m.matchStatus || '').toUpperCase();
+      [['team1', 'team1ResultId'], ['team2', 'team2ResultId']].forEach(([k, r]) => {
+        const t = m[k]; if (!t || !t.name) return;
+        const name = t.name.trim();
+        if (PLACEHOLDER.test(name) || clubOf(name)) return;
+        const slug = 'team-' + slugify(name); if (slug === 'team-') return;
+        let x = out.get(slug);
+        if (!x) {
+          const c = indepClub(slug);
+          c.name = c.short = name;
+          if (!c.bcLogo && /^https:\/\//.test(t.logoUrl || '')) c.bcLogo = t.logoUrl;
+          x = { club: c, division: (rd.division && rd.division.name) || '', W: 0, L: 0, live: 0, week: 0 };
+          out.set(slug, x);
+        }
+        const gs = gameStatus(st, m.startTime, m);
+        if (gs === 'final') { if (m[r] === 1) x.W++; else if (m[r] === 2) x.L++; }
+        else if (gs === 'live') x.live++;
+        const ts = Date.parse(m.startTime);
+        if (!st && ts > now - 3 * 3600e3 && ts < now + 7 * 864e5) x.week++;
+      });
+    })));
+    return out;
+  }
   // The All games view wears the Barossa Settlers (BVABA) green and gold and their ball logo.
   const ALL = { slug: 'all', all: true, name: 'All games', short: '', initials: 'ALL', logo: 'clubs/settlers.png', colours: { primary: '#0B6B34', dark: '#064523', accent: '#F9B129', ink: '#2E2200' } };
   const isAll = () => !!(CLUB && CLUB.all);
@@ -1565,7 +1609,21 @@ function gameStatus(st, startTime, m) {
       html += '<h2 class="section-title">Your club</h2><button type="button" class="pick-mine" data-pick="' + esc(mine.slug) + '"' + (mine.plus && mine.colours ? ' style="background:' + esc(mine.colours.dark) + '"' : '') + '>' + clubBadge(mine, 60) +
         '<span class="pick-main"><b>' + esc(mine.name) + '</b><span>' + x.teams.size + ' teams' + (x.week ? ' · ' + x.week + ' games this week' : '') + '</span></span><span class="go">›</span></button>';
     }
-    html += '<h2 class="section-title">All clubs</h2><div class="card pick-list">' + sorted.map(row).join('') + '</div>' +
+    html += '<h2 class="section-title">All clubs</h2><div class="card pick-list">' + sorted.map(row).join('') + '</div>';
+    const ind = Array.from(independents().values()).sort((a, b) => a.division.localeCompare(b.division) || a.club.name.localeCompare(b.club.name));
+    if (ind.length) {
+      const irow = (x) => {
+        const c = x.club;
+        const sub = x.live ? x.live + ' live now' : x.week ? x.week + (x.week === 1 ? ' game' : ' games') + ' this week' : 'No games this week';
+        return '<button type="button" class="pick-row" data-pick="' + esc(c.slug) + '">' + clubBadge(c, 44) + '<span class="pick-main"><b>' + esc(c.name) + (x.live ? ' <span class="live-pill">LIVE</span>' : '') + '</b><span>' + esc(sub) + '</span></span>' +
+          '<span class="pick-rec">' + x.W + '–' + x.L + '<small>SEASON</small></span></button>';
+      };
+      const open = mine && mine.independent;
+      let last = null, rows = '';
+      ind.forEach((x) => { const d = shortDivision(x.division) || x.division || 'Other'; if (d !== last) { rows += '<div class="pick-group">' + esc(d) + '</div>'; last = d; } rows += irow(x); });
+      html += '<details class="card pick-list pick-indep"' + (open ? ' open' : '') + '><summary><span class="cbadge" style="width:44px;height:44px;font-size:15px">IND</span><span class="pick-main"><b>Independent teams</b><span>' + ind.length + ' teams not linked to a club</span></span><span class="chev" aria-hidden="true">›</span></summary>' + rows + '</details>';
+    }
+    html +=
       '<p class="fine">Tap your club to see only its teams. The phone remembers it, so next time the site (and its home-screen icon) opens straight to your club. Switch any time with ⇄ Club.</p></div>';
     app.innerHTML = html;
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.remove('active'));
@@ -1583,7 +1641,7 @@ function gameStatus(st, startTime, m) {
 
   // Free clubs see what Plus would add, as a nudge for the committee.
   function plusTeaser() {
-    if (isAll() || plusOn()) return '';
+    if (isAll() || plusOn() || (CLUB && CLUB.independent)) return '';
     return '<aside class="plus-teaser"><div class="pt-k">🔒 ' + esc(CLUB.short.toUpperCase()) + ' PLUS</div><ul><li>Live team and player fouls</li><li>Live worm: the game\'s momentum, play by play</li><li>Alerts: tip-off, quarters and full time</li><li>Your club\'s logo, colours and sponsors</li></ul>' +
       '<p>Plus is switched on per club and covers every family. Ask your committee about it.</p></aside>';
   }
@@ -1663,7 +1721,7 @@ function gameStatus(st, startTime, m) {
     }))));
     const had = CLUBS.map((c) => c.bcLogo).join();
     CLUBS.forEach((c) => { const x = tally.get(c.slug); c.bcLogo = x ? [...x.values()].sort((a, b) => b.n - a.n)[0].url : ''; });
-    if (CLUB && !CLUB.all) CLUB.bcLogo = (clubBySlug(CLUB.slug) || {}).bcLogo || '';
+    if (CLUB && !CLUB.all && !CLUB.independent) CLUB.bcLogo = (clubBySlug(CLUB.slug) || {}).bcLogo || '';
     if (had !== CLUBS.map((c) => c.bcLogo).join()) renderHeader();
   }
 
@@ -1672,6 +1730,7 @@ function gameStatus(st, startTime, m) {
       const wasLive = new Set(DATA ? DATA.games.filter((g) => g.status === 'live').map((g) => g.id) : []);
       RAW = await fetchAll();
       setBcLogos();
+      if (CLUB && CLUB.independent) { independents(); renderHeader(); }
       DATA = CLUB ? normalise(RAW) : null;
       if (DATA) DATA.games.forEach((g) => { if (wasLive.has(g.id) && g.status === 'final' && !justFinal.has(g.id)) { justFinal.set(g.id, Date.now()); sirenQueue.add(g.id); } });
       // Opened by tapping a full-time alert: play the siren for that game once, as if you had watched it finish.
