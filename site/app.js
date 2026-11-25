@@ -1066,7 +1066,7 @@ function gameStatus(st, startTime, m) {
   function trackerLink(t) {
     if (!PORTAL || !plusOn() || isAll() || !isLions(t.name) || !(CFG.trackerClubs || []).includes(CLUB.slug)) return '';
     const team = groupName(t) + ' ' + t.short;
-    return '<a class="btn secondary tracker-link" href="' + PORTAL + '/track/#/t/' + encodeURIComponent(CLUB.slug) + '/' + encodeURIComponent(team) + '">' +
+    return '<a class="btn secondary tracker-link" href="' + PORTAL + '/track/#/t/' + encodeURIComponent(CLUB.slug) + '/' + encodeURIComponent(team) + '?back=' + encodeURIComponent(location.href) + '">' +
       '<span aria-hidden="true">📋</span> Team stat tracker <span class="tl-sub">· coaches</span></a>';
   }
   function teamSponsor(t) {

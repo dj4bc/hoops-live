@@ -25,6 +25,16 @@
   function nextGame(club, team) {
     try { const n = JSON.parse(sessionStorage.getItem(nextKey(club, team)) || 'null'); const today = new Date(Date.now() + 10.5 * 3600e3).toISOString().slice(0, 10); return n && n.opp && (!n.d || n.d >= today) ? n : null; } catch (e) { return null; }
   }
+  // Where the coach came from on the club site, so the PIN and team screens can link back to it.
+  const backKey = (club, team) => 'trk.back.' + club + '|' + team;
+  const safeUrl = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : null; } catch (e) { return null; } };
+  function siteBack(club, team) {
+    const u = store.get(backKey(club, team));
+    if (u) return [u, 'Team page'];
+    // Older links carry no back address: step back in this tab if we came from somewhere.
+    if (document.referrer && history.length > 1) return ['javascript:history.back()', 'Back'];
+    return null;
+  }
   const tokKey = (club, team) => 'trk.tok.' + club + '|' + team;
   function token(club, team) { const t = store.get(tokKey(club, team)); return t && t.expires > Date.now() ? t.token : null; }
   async function api(path, opts) {
@@ -98,8 +108,10 @@
     // Opened bare (e.g. from the home-screen icon): go back to the last team used on this phone.
     if (!parts[0]) { const last = store.get('trk.last'); if (last && last.club && last.team && token(last.club, last.team)) { location.replace('#' + teamHref(last.club, last.team).slice(1)); return; } }
     // The club site sends the next game (opponent, date, match id) so the coach never types it.
-    if (parts[0] === 't' && parts[1] && parts[2] && params.has('opp')) {
-      try { sessionStorage.setItem(nextKey(parts[1], parts[2]), JSON.stringify({ opp: params.get('opp'), d: params.get('d'), m: params.get('m'), r: params.get('r') })); } catch (e) { /* fine */ }
+    if (parts[0] === 't' && parts[1] && parts[2] && (params.has('opp') || params.has('back'))) {
+      if (params.has('opp')) try { sessionStorage.setItem(nextKey(parts[1], parts[2]), JSON.stringify({ opp: params.get('opp'), d: params.get('d'), m: params.get('m'), r: params.get('r') })); } catch (e) { /* fine */ }
+      const b = safeUrl(params.get('back') || '');
+      if (b) store.set(backKey(parts[1], parts[2]), b);
       history.replaceState(null, '', '#' + raw.slice(0, qi));
     }
     view = location.hash;
@@ -126,7 +138,7 @@
   /* ---------- PIN ---------- */
   function renderPin(club, team, msg) {
     let pin = '';
-    app.innerHTML = header(null, team, 'Coaches and team managers') +
+    app.innerHTML = header(siteBack(club, team), team, 'Coaches and team managers') +
       '<div class="pin"><h2>Enter team PIN</h2><div class="muted">4 digits, from your club.</div><div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>' +
       '<div class="err" id="msg">' + esc(msg || '') + '</div><div class="keys">' +
       [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => '<button type="button" data-k="' + n + '">' + n + '</button>').join('') +
@@ -180,7 +192,7 @@
   }
   async function renderTeam(club, team, tok) {
     const here = view;
-    app.innerHTML = header(null, team, teamSub(club, team)) + '<div class="pad muted">Loading…</div>';
+    app.innerHTML = header(siteBack(club, team), team, teamSub(club, team)) + '<div class="pad muted">Loading…</div>';
     let data;
     try { data = await api('/team', { token: tok }); } catch (e) { if (!lockedOut(club, team, e)) app.querySelector('.pad').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
     if (here !== view) return;
@@ -194,7 +206,7 @@
         '<div class="grow"><div class="t">' + esc(g.opponent ? 'v ' + g.opponent : 'Game') + '</div><div class="m">' + esc(g.metrics.map((m) => (CAT.byId[m.id] || {}).name).filter(Boolean).join(' · ')) + '</div></div>' +
         (g.status === 'live' ? '<span class="pill live">LIVE</span>' : res.length ? '<span class="pill' + (hit === res.length ? '' : ' miss') + '">' + hit + '/' + res.length + ' goals</span>' : '') + '</a>';
     };
-    app.innerHTML = header(null, team, teamSub(club, team)) + installTip() + '<div class="pad">' +
+    app.innerHTML = header(siteBack(club, team), team, teamSub(club, team)) + installTip() + '<div class="pad">' +
       (live.length ? '<div class="lbl" style="margin-top:4px">Live now</div><div class="card">' + live.map(gameRow).join('') + '</div>' : '') +
       '<a class="btn" href="' + teamHref(club, team) + '/new">＋ Start tracking ' + (nextGame(club, team) ? 'v ' + esc(nextGame(club, team).opp) : 'a game') + '</a>' +
       '<div class="lbl">Games</div><div class="card">' + (done.length ? done.map(gameRow).join('') : '<div class="muted">No finished games yet. Start one at tip-off.</div>') + '</div>' +
