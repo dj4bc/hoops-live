@@ -177,7 +177,16 @@ async function slow() {
   if (cache && Date.now() - cache.at < 15 * 60000) return cache.data;
   // apt-check prints "updates;security" on stderr
   const ac = spawnSync('/usr/lib/update-notifier/apt-check', [], { encoding: 'utf8', timeout: 30000 });
-  const updates = String((ac.stderr || '') + (ac.stdout || '')).trim().match(/(\d+);(\d+)/);
+  let updates = String((ac.stderr || '') + (ac.stdout || '')).trim().match(/(\d+);(\d+)/);
+  if (!updates) {
+    // apt-check can't run inside the agent's sandbox; fall back to the login-banner file Ubuntu keeps up to date
+    try {
+      const t = fs.readFileSync('/var/lib/update-notifier/updates-available', 'utf8');
+      const n = t.match(/(\d+) updates? can be applied/), sec = t.match(/(\d+) of these updates? (?:is a|are) (?:standard )?security/);
+      updates = [null, n ? n[1] : (/^\s*$/.test(t) || /0 updates/.test(t) ? '0' : null), sec ? sec[1] : '0'];
+      if (updates[1] == null) updates = null;
+    } catch {}
+  }
   const sshFails = run('journalctl', ['-u', 'ssh', '--since', '-24h', '-o', 'cat', '--no-pager', '-q', '--grep', 'Failed password|Invalid user|authentication failure']).split('\n').filter(Boolean).length;
   const journalUse = (run('journalctl', ['--disk-usage']).match(/take up ([\d.]+\s*\w+)/) || [])[1] || null;
   const data = {
