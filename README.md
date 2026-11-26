@@ -9,6 +9,7 @@ sponsors, branding and logins. First tenant: Barossa Valley Basketball Summer Se
 | Results site (static) | `site/` | Cloudflare, Workers static assets (`wrangler.toml` here) | hoops.adamforb.es, panthers.adamforb.es |
 | Club portal and API | `portal/` | Cloudflare Worker + D1 (database) + R2 (logos) | portal.adamforb.es |
 | Live fouls, worm, alerts | not in this repo | the Linode scraper (fouls.adamforb.es) | unchanged |
+| Ops health dashboard | `ops/` | Cloudflare Worker + D1, agent on the Linode | ops.adamforb.es (private) |
 
 ## How the site works
 

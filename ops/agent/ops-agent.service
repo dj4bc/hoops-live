@@ -1,0 +1,24 @@
+[Unit]
+Description=Lions Ops agent (sends server health to ops.adamforb.es)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=opsagent
+Group=opsagent
+# Read the scraper and push-alerts logs, nothing else
+SupplementaryGroups=systemd-journal
+EnvironmentFile=/etc/ops-agent.env
+ExecStart=/usr/bin/node /opt/ops-agent/ops-agent.mjs
+TimeoutStartSec=50
+StateDirectory=ops-agent
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+MemoryMax=128M
+CPUQuota=25%

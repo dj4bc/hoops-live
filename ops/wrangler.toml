@@ -1,0 +1,31 @@
+# Ops dashboard: health of the Linode, the foul scraper, BasketballConnect and the sites.
+# Runs on Cloudflare so it stays up (and keeps alerting) when the Linode is down.
+# The whole host sits behind Cloudflare Access; the Worker also checks the Access token itself.
+name = "hoops-ops"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = false
+routes = [{ pattern = "ops.adamforb.es", custom_domain = true }]
+
+[triggers]
+crons = ["* * * * *"]
+
+# Every request goes through the Worker first, so the page itself is never served without sign-in.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hoops-ops"
+database_id = "REPLACE_AFTER_d1_create"
+
+[vars]
+DASHBOARD_URL = "https://ops.adamforb.es"
+# Secrets (npx wrangler secret put <NAME>), kept out of this file so a deploy never wipes them:
+#   AGENT_TOKEN         shared with the Linode agent (/etc/ops-agent.env)
+#   NTFY_TOPIC          ntfy.sh topic for alerts to your phone (treat it like a password)
+#   ACCESS_TEAM_DOMAIN  e.g. yourteam.cloudflareaccess.com
+#   ACCESS_AUD          the Access application's "Application Audience (AUD) Tag"
+# Until both ACCESS_* are set the dashboard refuses to show anything.
