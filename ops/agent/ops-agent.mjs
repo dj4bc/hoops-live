@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import tls from 'node:tls';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 const FOULS_DIR = process.env.FOULS_DIR || '/var/www/fouls';
 const STATE_DIR = process.env.STATE_DIR || '/var/lib/ops-agent';
@@ -34,10 +34,16 @@ function cpuTimes() {
   const idle = line[3] + (line[4] || 0);
   return { idle, total: line.reduce((a, b) => a + b, 0) };
 }
+// Average CPU since the last run (about a minute), so the agent's own start-up doesn't count.
+// First run, or after a gap: a 1-second sample taken before anything else starts.
 async function cpuPct() {
-  const a = cpuTimes(); await sleep(1000); const b = cpuTimes();
+  const prev = readState('cpu.json', null);
+  let a = prev && Date.now() - prev.at < 5 * 60000 ? prev : null;
+  if (!a) { a = cpuTimes(); await sleep(1000); }
+  const b = cpuTimes();
+  writeState('cpu.json', Object.assign({ at: Date.now() }, b));
   const dt = b.total - a.total;
-  return dt > 0 ? Math.round(100 * (1 - (b.idle - a.idle) / dt)) : 0;
+  return dt > 0 ? Math.max(0, Math.min(100, Math.round(100 * (1 - (b.idle - a.idle) / dt)))) : 0;
 }
 
 function memInfo() {
@@ -169,7 +175,9 @@ function pushStats() {
 async function slow() {
   const cache = readState('slow.json', null);
   if (cache && Date.now() - cache.at < 15 * 60000) return cache.data;
-  const updates = run('/usr/lib/update-notifier/apt-check', []).trim().match(/^(\d+);(\d+)/);
+  // apt-check prints "updates;security" on stderr
+  const ac = spawnSync('/usr/lib/update-notifier/apt-check', [], { encoding: 'utf8', timeout: 30000 });
+  const updates = String((ac.stderr || '') + (ac.stdout || '')).trim().match(/(\d+);(\d+)/);
   const sshFails = run('journalctl', ['-u', 'ssh', '--since', '-24h', '-o', 'cat', '--no-pager', '-q', '--grep', 'Failed password|Invalid user|authentication failure']).split('\n').filter(Boolean).length;
   const journalUse = (run('journalctl', ['--disk-usage']).match(/take up ([\d.]+\s*\w+)/) || [])[1] || null;
   const data = {
@@ -210,7 +218,8 @@ function netTotals() {
 }
 
 async function collect() {
-  const [cpu, slowData] = await Promise.all([cpuPct(), slow()]);
+  const cpu = await cpuPct(); // first, before the other work adds load
+  const slowData = await slow();
   const load = fs.readFileSync('/proc/loadavg', 'utf8').split(' ').slice(0, 3).map(Number);
   const uptimeSec = Math.round(Number(fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0]));
   return Object.assign({

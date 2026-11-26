@@ -7,6 +7,8 @@ compatibility_date = "2025-09-01"
 workers_dev = false
 routes = [{ pattern = "ops.adamforb.es", custom_domain = true }]
 
+# Cron triggers need the account's workers.dev subdomain to exist (open Workers & Pages in the
+# dashboard once); the Worker itself stays off workers.dev.
 [triggers]
 crons = ["* * * * *"]
 
@@ -19,7 +21,7 @@ run_worker_first = true
 [[d1_databases]]
 binding = "DB"
 database_name = "hoops-ops"
-database_id = "REPLACE_AFTER_d1_create"
+database_id = "3b4d8548-f30c-4c25-bd95-42c544afa414"
 
 [vars]
 DASHBOARD_URL = "https://ops.adamforb.es"
