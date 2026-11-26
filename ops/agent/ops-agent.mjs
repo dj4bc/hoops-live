@@ -171,10 +171,13 @@ function pushStats() {
   return { notices, sent, tried, failed: tried - sent, subscribers, quiet };
 }
 
-// Slow-changing things are refreshed every 15 minutes and cached.
+function bootId() { try { return fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch { return ''; } }
+
+// Slow-changing things are refreshed every 15 minutes (and after every reboot) and cached.
 async function slow() {
   const cache = readState('slow.json', null);
-  if (cache && Date.now() - cache.at < 15 * 60000) return cache.data;
+  const boot = bootId();
+  if (cache && cache.boot === boot && Date.now() - cache.at < 15 * 60000) return cache.data;
   // apt-check prints "updates;security" on stderr
   const ac = spawnSync('/usr/lib/update-notifier/apt-check', [], { encoding: 'utf8', timeout: 30000 });
   let updates = String((ac.stderr || '') + (ac.stdout || '')).trim().match(/(\d+);(\d+)/);
@@ -199,7 +202,7 @@ async function slow() {
     },
     certs: await Promise.all(CERT_HOSTS.map(certInfo)),
   };
-  writeState('slow.json', { at: Date.now(), data });
+  writeState('slow.json', { at: Date.now(), boot, data });
   return data;
 }
 
@@ -245,7 +248,10 @@ async function collect() {
     games: games(),
     logs: logs(),
     push: pushStats(),
-  }, slowData);
+  }, slowData, {
+    // Checked every run so it clears straight after a reboot
+    os: Object.assign({}, slowData.os, { rebootRequired: fs.existsSync('/var/run/reboot-required') }),
+  });
 }
 
 async function main() {
