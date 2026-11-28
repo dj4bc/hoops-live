@@ -33,6 +33,9 @@
     if (u) return [u, 'Team page'];
     // Older links carry no back address: step back in this tab if we came from somewhere.
     if (document.referrer && history.length > 1) return ['javascript:history.back()', 'Back'];
+    // Opened from the home-screen icon with nothing saved yet: on a club's own domain
+    // (e.g. lions.adamforb.es/track/) the club site is the root of the same site.
+    if (!/^portal\./.test(location.hostname)) return [location.origin + '/', 'Club site'];
     return null;
   }
   const tokKey = (club, team) => 'trk.tok.' + club + '|' + team;
@@ -196,15 +199,18 @@
     let data;
     try { data = await api('/team', { token: tok }); } catch (e) { if (!lockedOut(club, team, e)) app.querySelector('.pad').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; return; }
     if (here !== view) return;
-    const live = data.games.filter((g) => g.status === 'live');
-    const done = data.games.filter((g) => g.status !== 'live');
+    // A game left running after its day (nobody tapped Finish) shows with the finished games.
+    const today = new Date(Date.now() + 10.5 * 3600e3).toISOString().slice(0, 10);
+    const isLive = (g) => g.status === 'live' && !(g.date && g.date < today);
+    const live = data.games.filter(isLive);
+    const done = data.games.filter((g) => !isLive(g));
     const gameRow = (g) => {
       const res = g.metrics.map((m) => { const def = CAT.byId[m.id]; return def ? goalHit(def, m.goal, measure(def, g.totals[m.id] || {})) : null; }).filter((x) => x != null);
       const hit = res.filter(Boolean).length;
       const d = new Date(g.date + 'T00:00:00');
-      return '<a class="gl" href="' + teamHref(club, team) + '/g/' + g.id + (g.status === 'live' ? '' : '/summary') + '"><div class="d">' + esc(d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase()) + '<b>' + d.getDate() + '</b></div>' +
+      return '<a class="gl" href="' + teamHref(club, team) + '/g/' + g.id + (isLive(g) ? '' : '/summary') + '"><div class="d">' + esc(d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase()) + '<b>' + d.getDate() + '</b></div>' +
         '<div class="grow"><div class="t">' + esc(g.opponent ? 'v ' + g.opponent : 'Game') + '</div><div class="m">' + esc(g.metrics.map((m) => (CAT.byId[m.id] || {}).name).filter(Boolean).join(' · ')) + '</div></div>' +
-        (g.status === 'live' ? '<span class="pill live">LIVE</span>' : res.length ? '<span class="pill' + (hit === res.length ? '' : ' miss') + '">' + hit + '/' + res.length + ' goals</span>' : '') + '</a>';
+        (isLive(g) ? '<span class="pill live">LIVE</span>' : res.length ? '<span class="pill' + (hit === res.length ? '' : ' miss') + '">' + hit + '/' + res.length + ' goals</span>' : '') + '</a>';
     };
     app.innerHTML = header(siteBack(club, team), team, teamSub(club, team)) + installTip() + '<div class="pad">' +
       (live.length ? '<div class="lbl" style="margin-top:4px">Live now</div><div class="card">' + live.map(gameRow).join('') + '</div>' : '') +
