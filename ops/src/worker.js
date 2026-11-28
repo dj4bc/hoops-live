@@ -34,7 +34,7 @@ export default {
       if (url.pathname === '/api/status') return json(await status(env));
       if (url.pathname === '/api/traffic') return json(await traffic(env, req, ctx));
       if (url.pathname === '/api/test-alert' && req.method === 'POST') {
-        const sent = await notify(env, 'Test alert from Lions Ops', 'If you can read this, alerts work.', 'default');
+        const sent = await notify(env, 'Test alert from Hoops Ops', 'If you can read this, alerts work.', 'default');
         return json({ sent });
       }
       return env.ASSETS.fetch(req);
@@ -146,7 +146,7 @@ function b64urlText(s) { return new TextDecoder().decode(b64urlBytes(s)); }
 async function timed(url, opts = {}) {
   const t0 = Date.now();
   try {
-    const res = await fetch(url, Object.assign({ redirect: 'follow', headers: { 'User-Agent': 'lions-ops-monitor', Accept: 'application/json, text/html' }, signal: AbortSignal.timeout(opts.timeout || 10000) }, opts.fetch));
+    const res = await fetch(url, Object.assign({ redirect: 'follow', headers: { 'User-Agent': 'hoops-ops-monitor', Accept: 'application/json, text/html' }, signal: AbortSignal.timeout(opts.timeout || 10000) }, opts.fetch));
     const ms = Date.now() - t0;
     const body = opts.body ? await res.text() : (await res.arrayBuffer(), '');
     // Cloudflare refuses some Worker-to-Worker fetches in the same zone (error 1042): not a real outage.

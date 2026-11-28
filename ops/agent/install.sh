@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install or update the Lions Ops agent on the Linode. Run as root from this folder:
+# Install or update the Hoops Ops agent on the Linode. Run as root from this folder:
 #   OPS_TOKEN=<same value as the Worker's AGENT_TOKEN> sh install.sh
 # It adds a user, a timer and one config file. It does not touch the scraper, push-alerts or Caddy.
 # Remove: systemctl disable --now ops-agent.timer && rm -rf /opt/ops-agent /etc/ops-agent.env /etc/systemd/system/ops-agent.* && userdel opsagent

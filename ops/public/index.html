@@ -5,20 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0A1B3D">
-<title>Lions Ops</title>
+<title>Hoops Ops</title>
 <link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Hoops Ops">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
 <style>
-:root{--blue:#163A80;--navy:#0A1B3D;--red:#BE1823;--silver:#B7B8BA;--bg:#EEF1F6;--card:#fff;--ink:#14203A;--mute:#5E6884;--line:#DDE2EC;
+:root{--blue:#163A80;--navy:#0A1B3D;--red:#BE1823;--orange:#F28C28;--silver:#B7B8BA;--bg:#EEF1F6;--card:#fff;--ink:#14203A;--mute:#5E6884;--line:#DDE2EC;
 --ok:#1E9E5A;--okbg:#E5F5EC;--warn:#D99100;--warnbg:#FFF4DB;--warnink:#8A5C00;--bad:#D7263D;--badbg:#FDE6E9;--idle:#9AA3B5}
 @media (prefers-color-scheme:dark){:root{--bg:#0B1324;--card:#131D33;--ink:#E7ECF5;--mute:#98A3BC;--line:#243049;--okbg:#12301F;--warnbg:#3A2C08;--warnink:#FFD27A;--badbg:#3D121A;--blue:#8FB0F0}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom)}
 h1,h2,.osw{font-family:Oswald,Inter,sans-serif;letter-spacing:.02em;text-transform:uppercase}
-.top{background:linear-gradient(90deg,#0A1B3D,#163A80);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:4px solid var(--red)}
-.top img{height:34px}.top h1{font-size:20px;font-weight:700}.top .sub{font-size:12px;opacity:.75}
+.top{background:linear-gradient(90deg,#0A1B3D,#1E2433);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:4px solid var(--orange)}
+.top img{height:34px;width:34px;border-radius:8px}.top h1{font-size:20px;font-weight:700}.top .sub{font-size:12px;opacity:.75}
 .top .right{margin-left:auto;text-align:right;font-size:12px;opacity:.9}
 main{max-width:1100px;margin:0 auto;padding:0 12px 24px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}
@@ -51,7 +53,7 @@ button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(
 .err{background:var(--badbg);color:var(--bad);padding:10px 12px;border-radius:10px;margin-top:12px;font-size:13px}
 /* Tabs + Traffic tab */
 .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line)}.tabs a{flex:1;text-align:center;padding:10px 0;font-weight:700;font-size:13px;color:var(--mute);text-decoration:none}
-.tabs a.on{color:var(--blue);box-shadow:inset 0 -3px 0 var(--red)}
+.tabs a.on{color:var(--blue);box-shadow:inset 0 -3px 0 var(--orange)}
 .seg{display:flex;gap:6px;margin:12px 0 0;align-items:center}.seg button{border-radius:99px;padding:5px 12px;font-size:12px;color:var(--mute)}.seg button.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .seg select{margin-left:auto;font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:5px 10px}
 .chart .tchart{display:block;width:100%;height:auto;font-family:Inter,system-ui,sans-serif}
@@ -72,7 +74,7 @@ button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(
 </style>
 </head>
 <body>
-<div class="top"><img src="shield.png" alt=""><div><h1>Lions Ops</h1><div class="sub">System health · all sites</div></div><div class="right" id="clock">…</div></div>
+<div class="top"><img src="icon.png" alt=""><div><h1>Hoops Ops</h1><div class="sub">System health · all sites</div></div><div class="right" id="clock">…</div></div>
 <nav class="tabs"><a href="#" id="tab-status" class="on">Status</a><a href="#traffic" id="tab-traffic">Traffic</a></nav>
 <main id="app"><div class="empty">Loading…</div></main>
 <main id="traffic" hidden><div class="empty">Loading…</div></main>
