@@ -200,8 +200,13 @@ async function getLatest(env, k) {
   return row ? { ts: row.ts, data: JSON.parse(row.data) } : null;
 }
 
+// Every check kind the cron writes. Naming them lets SQLite use the (kind, ts) index and read only
+// the last few minutes; "kind != 'agent'" made it read the whole 30-day table every minute.
+const CHECK_KINDS = ['bc_api', 'bc_site'].concat(Object.keys(SITES).map((n) => 'site:' + n));
+
 async function recentChecks(env, since) {
-  const { results } = await env.DB.prepare("SELECT ts, kind, ok, ms, data FROM samples WHERE ts >= ?1 AND kind != 'agent' ORDER BY ts DESC").bind(since).all();
+  const marks = CHECK_KINDS.map((_, i) => '?' + (i + 2)).join(', ');
+  const { results } = await env.DB.prepare('SELECT ts, kind, ok, ms, data FROM samples WHERE kind IN (' + marks + ') AND ts >= ?1 ORDER BY ts DESC').bind(since, ...CHECK_KINDS).all();
   const out = {};
   for (const r of results) {
     const d = r.data ? JSON.parse(r.data) : {};

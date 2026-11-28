@@ -29,6 +29,8 @@ Access's signed token itself, so the page shows nothing if Access is ever switch
 cd ops && npm install
 npx wrangler d1 create hoops-ops          # paste database_id into wrangler.toml
 npm run db:init
+# Existing database, once (28 Nov 2026): add the index the hourly prune needs
+npx wrangler d1 execute hoops-ops --remote --file=migrate-2026-11-28-indexes.sql
 openssl rand -hex 32 | tee /dev/stderr | npx wrangler secret put AGENT_TOKEN   # keep for the agent
 npx wrangler secret put NTFY_TOPIC         # a long random name, also typed into the ntfy app
 npx wrangler secret put ACCESS_TEAM_DOMAIN # yourteam.cloudflareaccess.com

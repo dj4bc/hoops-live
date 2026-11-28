@@ -212,7 +212,9 @@ button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(
       .catch(function (e) { failMsg = e.message || "Can't reach the dashboard."; render(); });
   }
   load();
-  setInterval(load, 15000);
+  // Every refresh reads about 500 database rows, so only refresh while the page is on screen
+  // (a tab left open in the background all day used to cost millions of reads).
+  setInterval(function () { if (!document.hidden) load(); }, 30000);
   setInterval(function () { if (data) render(); }, 5000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
 })();
