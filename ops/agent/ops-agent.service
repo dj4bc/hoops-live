@@ -1,5 +1,5 @@
 [Unit]
-Description=Lions Ops agent (sends server health to ops.adamforb.es)
+Description=Hoops Ops agent (sends server health to ops.adamforb.es)
 After=network-online.target
 Wants=network-online.target
 

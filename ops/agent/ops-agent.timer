@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Lions Ops agent every minute
+Description=Run the Hoops Ops agent every minute
 
 [Timer]
 OnBootSec=30s

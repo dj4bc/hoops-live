@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Lions Ops agent for the Linode. Runs once a minute (systemd timer), reads the server's health
+// Hoops Ops agent for the Linode. Runs once a minute (systemd timer), reads the server's health
 // and the foul scraper's output, and sends it to the ops dashboard Worker.
 // Read-only: it changes nothing on the server. No npm packages needed (Node 20).
 //

@@ -1,4 +1,4 @@
-# Lions Ops (ops.adamforb.es)
+# Hoops Ops (ops.adamforb.es)
 
 Private health dashboard for everything Lions Live, Settlers Live and Hoops Live need to run.
 It runs on Cloudflare, not the Linode, so it stays up and keeps alerting when the Linode is down.
