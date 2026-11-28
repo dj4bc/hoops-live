@@ -73,7 +73,7 @@ export function evaluate(s) {
       else if (sv.restarts10m >= 3) add('svc_flap:' + sv.unit, 'warn', sv.unit + ' keeps restarting', sv.restarts10m + ' restarts in 10 minutes.');
     }
     const scraper = (d.services || []).find((x) => x.unit === 'foul-scraper.service');
-    if (scraper && scraper.active === 'active' && d.logs && !d.logs.scraperLastLoop && scraper.since && now - scraper.since > 15 * 60000 && !scraperAsleep(now)) {
+    if (scraper && scraper.active === 'active' && d.logs && !d.logs.scraperLastLoop && scraper.since && now - scraper.since > 15 * 60000 && !scraperAsleep(now, d.logs, scraper.since)) {
       add('scraper_stalled', 'warn', 'Foul scraper has gone quiet', 'Running, but no "matches list" log line for 10 minutes. It may be stuck.');
     }
     if (d.logs && d.logs.errors10m >= LIMITS.scraperErrors10m) add('scraper_errors', 'warn', 'Scraper is logging errors', d.logs.errors10m + ' in the last 10 minutes. Latest: ' + ((d.logs.recent || [])[0] || ''));
@@ -92,9 +92,14 @@ export function evaluate(s) {
   return out;
 }
 
-// The scraper sleeps 10pm-6am Adelaide and logs nothing while asleep, so the
-// "gone quiet" check pauses from 10pm until 6:15am (15 minutes to wake and log).
-export function scraperAsleep(now) {
+// The scraper sleeps overnight (10pm-6am Adelaide, but only once no game is live) and
+// logs nothing while asleep. Newer agents report when it went to sleep
+// (logs.scraperSleepingSince, null when awake); older ones don't, so fall back to the clock.
+export function scraperAsleep(now, logs, since) {
+  if (logs && 'scraperSleepingSince' in logs) {
+    const t = logs.scraperSleepingSince;
+    return !!t && (!since || t >= since) && now - t < 9 * 3600000;
+  }
   const parts = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Adelaide', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(now));
   const get = (t) => Number((parts.find((x) => x.type === t) || {}).value);
   const mins = get('hour') * 60 + get('minute');

@@ -78,3 +78,13 @@ test('scraper quiet is fine during overnight quiet hours', () => {
   assert.deepEqual(at('2026-11-28T19:46:00Z'), ['scraper_stalled']); // 6:16am
   assert.deepEqual(at('2026-11-28T11:29:00Z'), ['scraper_stalled']); // 9:59pm
 });
+
+test('scraper quiet uses the sleep line when the agent reports it', () => {
+  const t = Date.parse('2026-11-28T13:00:00Z'); // 11:30pm Adelaide
+  const run = (logs) => evaluate(base({ now: t, agent: { ts: t - 30000, data: agent({ logs }).data } })).map((x) => x.k);
+  assert.deepEqual(run({ errors10m: 0, scraperLastLoop: null, scraperSleepingSince: t - 3600000 }), []);
+  // awake past 10pm for a late game, then stuck: alert even in the night window
+  assert.deepEqual(run({ errors10m: 0, scraperLastLoop: null, scraperSleepingSince: null }), ['scraper_stalled']);
+  // a sleep line from before the last restart doesn't count
+  assert.deepEqual(evaluate(base({ now: t, agent: { ts: t - 30000, data: agent({ logs: { errors10m: 0, scraperLastLoop: null, scraperSleepingSince: t - 3 * 86400000 } }).data } })).map((x) => x.k), ['scraper_stalled']);
+});
