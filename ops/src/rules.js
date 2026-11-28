@@ -73,7 +73,7 @@ export function evaluate(s) {
       else if (sv.restarts10m >= 3) add('svc_flap:' + sv.unit, 'warn', sv.unit + ' keeps restarting', sv.restarts10m + ' restarts in 10 minutes.');
     }
     const scraper = (d.services || []).find((x) => x.unit === 'foul-scraper.service');
-    if (scraper && scraper.active === 'active' && d.logs && !d.logs.scraperLastLoop && scraper.since && now - scraper.since > 15 * 60000) {
+    if (scraper && scraper.active === 'active' && d.logs && !d.logs.scraperLastLoop && scraper.since && now - scraper.since > 15 * 60000 && !scraperAsleep(now)) {
       add('scraper_stalled', 'warn', 'Foul scraper has gone quiet', 'Running, but no "matches list" log line for 10 minutes. It may be stuck.');
     }
     if (d.logs && d.logs.errors10m >= LIMITS.scraperErrors10m) add('scraper_errors', 'warn', 'Scraper is logging errors', d.logs.errors10m + ' in the last 10 minutes. Latest: ' + ((d.logs.recent || [])[0] || ''));
@@ -90,6 +90,15 @@ export function evaluate(s) {
     if (d.os && d.os.rebootRequired) add('reboot', 'warn', 'Linode needs a reboot', 'Security updates are waiting for one. Pick a time with no games.');
   }
   return out;
+}
+
+// The scraper sleeps 10pm-6am Adelaide and logs nothing while asleep, so the
+// "gone quiet" check pauses from 10pm until 6:15am (15 minutes to wake and log).
+export function scraperAsleep(now) {
+  const parts = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Adelaide', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(now));
+  const get = (t) => Number((parts.find((x) => x.type === t) || {}).value);
+  const mins = get('hour') * 60 + get('minute');
+  return mins >= 22 * 60 || mins < 6 * 60 + 15;
 }
 
 export function overall(problems) {
