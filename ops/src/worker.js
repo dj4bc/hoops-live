@@ -2,9 +2,11 @@
 // - POST /api/heartbeat: the Linode agent sends its readings every minute (bearer AGENT_TOKEN).
 // - Cron every minute: checks BasketballConnect and the sites from outside, works out problems,
 //   and sends an alert (ntfy) when a problem starts and when it clears.
+// - GET /api/traffic: site visits from Cloudflare Web Analytics (see traffic.js).
 // - GET /api/status and the page: only for people signed in through Cloudflare Access.
 
 import { evaluate, overall, missingFields, MATCH_FIELDS, ROUND_FIELDS, LIMITS } from './rules.js';
+import { traffic, syncDaily, local } from './traffic.js';
 
 const BC_API = 'https://api-basketball.squadi.com';
 // Small, stable request used to time the API: the divisions list for Lions Juniors (comp 2890).
@@ -23,13 +25,14 @@ const KEEP_DAYS = 30;
 const MAX_BODY = 256 * 1024;
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     try {
       if (url.pathname === '/api/heartbeat') return await heartbeat(req, env);
       const who = await accessUser(req, env);
       if (!who) return new Response('Sign in through Cloudflare Access to see this page.', { status: 403 });
       if (url.pathname === '/api/status') return json(await status(env));
+      if (url.pathname === '/api/traffic') return json(await traffic(env, req, ctx));
       if (url.pathname === '/api/test-alert' && req.method === 'POST') {
         const sent = await notify(env, 'Test alert from Lions Ops', 'If you can read this, alerts work.', 'default');
         return json({ sent });
@@ -41,7 +44,11 @@ export default {
     }
   },
   async scheduled(evt, env, ctx) {
-    ctx.waitUntil(runChecks(env, new Date(evt.scheduledTime || Date.now())).catch((e) => console.error('checks failed', e && e.stack || e)));
+    const when = new Date(evt.scheduledTime || Date.now());
+    ctx.waitUntil(runChecks(env, when).catch((e) => console.error('checks failed', e && e.stack || e)));
+    // 12:20 am Adelaide: save yesterday's site visit totals for the season view.
+    const l = local(when.getTime());
+    if (l.hour === 0 && l.minute === 20) ctx.waitUntil(syncDaily(env, when.getTime()).catch((e) => console.error('traffic sync failed', e && e.message || e)));
   },
 };
 

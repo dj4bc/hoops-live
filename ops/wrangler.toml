@@ -30,4 +30,6 @@ DASHBOARD_URL = "https://ops.adamforb.es"
 #   NTFY_TOPIC          ntfy.sh topic for alerts to your phone (treat it like a password)
 #   ACCESS_TEAM_DOMAIN  e.g. yourteam.cloudflareaccess.com
 #   ACCESS_AUD          the Access application's "Application Audience (AUD) Tag"
+#   CF_ACCOUNT_ID       Cloudflare account ID (Traffic tab)
+#   CF_API_TOKEN        API token with Account Analytics: Read (Traffic tab)
 # Until both ACCESS_* are set the dashboard refuses to show anything.

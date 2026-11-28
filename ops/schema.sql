@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS alerts (k TEXT PRIMARY KEY, firing INTEGER NOT NULL, 
 -- Incident log
 CREATE TABLE IF NOT EXISTS events (ts INTEGER NOT NULL, k TEXT NOT NULL, level TEXT NOT NULL, message TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS events_ts ON events (ts);
+-- Site visits per site per local (Adelaide) day, saved nightly from Cloudflare Web Analytics.
+-- About 2 rows a day; reads are primary-key range scans (WHERE day >= ?).
+CREATE TABLE IF NOT EXISTS site_daily (day TEXT NOT NULL, host TEXT NOT NULL, visits INTEGER NOT NULL, views INTEGER NOT NULL, PRIMARY KEY (day, host)) WITHOUT ROWID;
