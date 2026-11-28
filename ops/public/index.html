@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0A1B3D">
+<title>Lions Ops</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#163A80;--navy:#0A1B3D;--red:#BE1823;--silver:#B7B8BA;--bg:#EEF1F6;--card:#fff;--ink:#14203A;--mute:#5E6884;--line:#DDE2EC;
+--ok:#1E9E5A;--okbg:#E5F5EC;--warn:#D99100;--warnbg:#FFF4DB;--warnink:#8A5C00;--bad:#D7263D;--badbg:#FDE6E9;--idle:#9AA3B5}
+@media (prefers-color-scheme:dark){:root{--bg:#0B1324;--card:#131D33;--ink:#E7ECF5;--mute:#98A3BC;--line:#243049;--okbg:#12301F;--warnbg:#3A2C08;--warnink:#FFD27A;--badbg:#3D121A;--blue:#8FB0F0}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom)}
+h1,h2,.osw{font-family:Oswald,Inter,sans-serif;letter-spacing:.02em;text-transform:uppercase}
+.top{background:linear-gradient(90deg,#0A1B3D,#163A80);color:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:4px solid var(--red)}
+.top img{height:34px}.top h1{font-size:20px;font-weight:700}.top .sub{font-size:12px;opacity:.75}
+.top .right{margin-left:auto;text-align:right;font-size:12px;opacity:.9}
+main{max-width:1100px;margin:0 auto;padding:0 12px 24px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}
+.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}.dot.idle{background:var(--idle)}
+.hero{margin:12px 0;border-radius:14px;background:var(--okbg);border:2px solid var(--ok);padding:14px}
+.hero.warn{background:var(--warnbg);border-color:var(--warn)}.hero.bad{background:var(--badbg);border-color:var(--bad)}
+.hero h2{font-size:22px;display:flex;align-items:center;gap:10px}.hero.warn h2{color:var(--warnink)}.hero.bad h2{color:var(--bad)}.hero.ok h2{color:var(--ok)}
+.hero ul{list-style:none;margin-top:8px}.hero li{margin-top:6px;font-size:13px}.hero li b{display:block}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:760px){.grid{grid-template-columns:repeat(4,1fr)}.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}}
+.tile{background:var(--card);border-radius:12px;border:1px solid var(--line);padding:12px;border-left:6px solid var(--ok);min-width:0}
+.tile.warn{border-left-color:var(--warn)}.tile.bad{border-left-color:var(--bad)}.tile.idle{border-left-color:var(--idle)}
+.tile .k{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.tile .v{font-family:Oswald,Inter,sans-serif;font-size:26px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .s{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{margin:18px 0 8px;font-family:Oswald,Inter,sans-serif;text-transform:uppercase;font-size:14px;color:var(--blue);font-weight:600;display:flex;align-items:center;gap:8px}
+.sec:after{content:"";flex:1;height:2px;background:var(--silver);opacity:.5}
+.list{background:var(--card);border-radius:12px;border:1px solid var(--line)}
+.li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);min-width:0}.li:last-child{border:0}
+.li b{font-size:13px}.li .sm{font-size:12px;color:var(--mute)}.li .r{margin-left:auto;text-align:right;font-size:12px;color:var(--mute);flex:none;max-width:42%}
+.li .grow{flex:1}
+.li .grow{min-width:0;overflow:hidden}
+.empty{padding:14px 12px;color:var(--mute);font-size:13px}
+.chart{background:var(--card);border-radius:12px;border:1px solid var(--line);padding:10px 12px}
+.chart svg{display:block;width:100%;height:110px}
+.legend{font-size:11px;color:var(--mute);display:flex;gap:12px;margin-top:4px;flex-wrap:wrap}
+.ev{display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}.ev:last-child{border:0}.ev .t{color:var(--mute);flex:none;width:86px;font-size:12px}
+.foot{margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--mute);font-size:12px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;cursor:pointer}
+.err{background:var(--badbg);color:var(--bad);padding:10px 12px;border-radius:10px;margin-top:12px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="top"><img src="shield.png" alt=""><div><h1>Lions Ops</h1><div class="sub">System health · all sites</div></div><div class="right" id="clock">…</div></div>
+<main id="app"><div class="empty">Loading…</div></main>
+<script>
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var data = null, lastOk = 0, failMsg = '';
+  var TZ = 'Australia/Adelaide';
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ago(ms) {
+    if (ms == null || !isFinite(ms)) return 'never';
+    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 90) return s + ' s ago';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    if (s < 172800) return Math.round(s / 3600) + ' h ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function dur(sec) { if (sec < 3600) return Math.round(sec / 60) + ' min'; if (sec < 172800) return Math.round(sec / 3600) + ' h'; return Math.round(sec / 86400) + ' days'; }
+  function gb(b) { return b == null ? '?' : (b / 1073741824).toFixed(b < 10737418240 ? 1 : 0) + ' GB'; }
+  function mb(b) { return b == null ? '?' : Math.round(b / 1048576) + ' MB'; }
+  function time(ms) { return new Date(ms).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: TZ }).replace(' ', ' '); }
+  function day(ms) { return new Date(ms).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ }); }
+  function when(ms) { var t = new Date(ms); var today = day(Date.now()) === day(ms); return (today ? '' : day(ms) + ' ') + time(ms); }
+  function tile(k, v, s, cls) { return '<div class="tile ' + (cls || '') + '"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div><div class="s">' + esc(s) + '</div></div>'; }
+  function li(cls, title, sub, right) { return '<div class="li"><span class="dot ' + (cls || '') + '"></span><div class="grow"><b>' + esc(title) + '</b>' + (sub ? '<div class="sm">' + esc(sub) + '</div>' : '') + '</div><div class="r">' + esc(right || '') + '</div></div>'; }
+  function lvl(p, warnAt, badAt) { return p >= badAt ? 'bad' : p >= warnAt ? 'warn' : ''; }
+  function has(prefix) { return (data.problems || []).some(function (p) { return p.k.indexOf(prefix) === 0; }); }
+  function levelOf(prefix) { var l = ''; (data.problems || []).forEach(function (p) { if (p.k.indexOf(prefix) === 0) l = (l === 'bad' || p.level === 'bad') ? 'bad' : 'warn'; }); return l; }
+
+  function spark(series, idx, max, color) {
+    if (!series.length) return '';
+    var t0 = series[0][0], t1 = series[series.length - 1][0] || t0 + 1, W = 600, H = 100, d = '', pen = false;
+    series.forEach(function (r) {
+      var v = r[idx];
+      if (v == null) { pen = false; return; }
+      var x = ((r[0] - t0) / Math.max(1, t1 - t0)) * W, y = H - Math.min(v, max) / max * H;
+      d += (pen ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); pen = true;
+    });
+    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+  }
+
+  function render() {
+    if (!data) { app.innerHTML = failMsg ? '<div class="err">' + esc(failMsg) + '</div>' : '<div class="empty">Loading…</div>'; return; }
+    var a = data.agent && data.agent.data, fresh = data.agent && data.agent.ageSec <= data.limits.agentSilentSec;
+    var probs = data.problems || [], h = '';
+    document.getElementById('clock').innerHTML = esc(day(Date.now())) + '<br><b>' + esc(time(Date.now())) + '</b>';
+
+    // Banner
+    var cls = data.overall;
+    h += '<div class="hero ' + cls + '"><h2><span class="dot ' + (cls === 'ok' ? '' : cls) + '"></span>' +
+      (cls === 'ok' ? 'All good' : probs.length === 1 ? '1 thing needs a look' : probs.length + ' things need a look') + '</h2>';
+    if (probs.length) h += '<ul>' + probs.map(function (p) { return '<li><b>' + esc(p.title) + '</b>' + esc(p.detail) + '</li>'; }).join('') + '</ul>';
+    else h += '<ul><li>Linode, scraper, BasketballConnect and all sites are working.</li></ul>';
+    h += '</div>';
+    if (failMsg) h += '<div class="err">' + esc(failMsg) + ' Showing data from ' + esc(ago(lastOk)) + '.</div>';
+
+    // Tiles
+    var bc = data.checks.bc_api, games = (a && a.games) || [], live = games.filter(function (g) { return g.live; });
+    var sites = Object.keys(data.checks).filter(function (k) { return k.indexOf('site:') === 0; });
+    var sitesUp = sites.filter(function (k) { return data.checks[k].ok || data.checks[k].unknown; }).length;
+    var loop = a && a.logs && a.logs.scraperLastLoop;
+    var push = a && a.push;
+    h += '<div class="grid">';
+    h += tile('Live games', fresh ? live.length : '?', fresh ? (live.length ? 'tracked now' : 'none on court') : 'no Linode data', fresh ? (has('game_stale') ? 'warn' : '') : 'idle');
+    h += tile('BasketballConnect', bc ? (bc.ok ? (bc.ms / 1000).toFixed(1) + 's' : 'DOWN') : '?', bc ? (bc.ok ? 'HTTP ' + bc.status + (data.schema && data.schema.ok ? ' · data OK' : data.schema ? ' · data changed' : '') : (bc.error || 'HTTP ' + bc.status)) : 'not checked yet', levelOf('bc_'));
+    h += tile('Linode report', data.agent ? ago(data.agent.ts).replace(' ago', '') : 'never', data.agent ? 'ago · every minute' : 'agent not installed', fresh ? '' : 'bad');
+    h += tile('Push alerts', push ? push.sent + '/' + push.tried : '?', push ? 'sent today · ' + (push.subscribers == null ? '?' : push.subscribers) + ' phones' + (push.quiet ? ' · quiet hrs' : '') : '', push && push.failed ? 'warn' : (push ? '' : 'idle'));
+    h += tile('Linode CPU', a ? a.cpu + '%' : '?', a ? 'load ' + a.load[0].toFixed(2) + ' · ' + a.cores + ' core' + (a.cores > 1 ? 's' : '') : '', a ? lvl(a.cpu, 80, 95) : 'idle');
+    h += tile('RAM', a ? a.mem.pct + '%' : '?', a ? mb(a.mem.used) + ' / ' + mb(a.mem.total) + ' · Chromium ' + a.chromiumMb + ' MB' : '', a ? (levelOf('mem') || levelOf('chromium')) : 'idle');
+    h += tile('Disk', a ? a.disk.pct + '%' : '?', a ? gb(a.disk.used) + ' / ' + gb(a.disk.total) : '', a ? levelOf('disk') : 'idle');
+    h += tile('Websites', sites.length ? sitesUp + '/' + sites.length : '?', sites.length ? (sitesUp === sites.length ? 'up' : 'something is down') : '', levelOf('site_down') || levelOf('cert'));
+    h += '</div>';
+
+    // Live games
+    h += '<div class="sec">Games today</div><div class="list">';
+    if (!fresh) h += '<div class="empty">Waiting for the Linode.</div>';
+    else if (!games.length) h += '<div class="empty">No games followed in the last 12 hours.</div>';
+    else games.slice(0, 15).forEach(function (g) {
+      var stale = has('game_stale:' + g.id);
+      var q = g.status === 'final' ? 'Final' : g.quarter ? 'Q' + g.quarter : g.status || '';
+      h += li(g.live ? (stale ? 'warn' : '') : 'idle', 'Match ' + g.id + (g.score ? ' · ' + g.score.join('–') : ''),
+        q + ' · fouls ' + g.fouls.join('–') + ' · ' + g.plays + ' plays', 'updated ' + ago(Date.parse(g.updatedAt)));
+    });
+    if (fresh && a.logs && a.logs.staleIgnored && a.logs.staleIgnored.length) h += '<div class="empty">Ignored as stale (still marked live by BasketballConnect after 4 h): ' + esc(a.logs.staleIgnored.join(', ')) + '</div>';
+    h += '</div>';
+
+    h += '<div class="cols"><div>';
+    // BC chart
+    h += '<div class="sec">BasketballConnect · last 3 h</div><div class="chart"><svg viewBox="0 0 600 100" preserveAspectRatio="none">' +
+      '<line x1="0" x2="600" y1="50" y2="50" stroke="#D99100" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>' +
+      spark(data.bcSeries, 1, 4000, '#163A80') + '</svg><div class="legend"><span>Response time (top = 4 s, dashed = 2 s slow line)</span>' +
+      (data.schema ? '<span>Data check ' + (data.schema.ok ? 'OK' : 'FAILED') + ' ' + ago(data.schema.checkedAt) + '</span>' : '') + '</div></div>';
+    // Linode chart
+    h += '<div class="sec">Linode · last 3 h</div><div class="chart"><svg viewBox="0 0 600 100" preserveAspectRatio="none">' +
+      spark(data.agentSeries, 1, 100, '#163A80') + spark(data.agentSeries, 2, 100, '#BE1823') + '</svg>' +
+      '<div class="legend"><span><span class="dot" style="background:#163A80"></span> CPU</span><span><span class="dot" style="background:#BE1823"></span> RAM</span><span>0 to 100%</span></div></div>';
+    // Services
+    h += '<div class="sec">Services</div><div class="list">';
+    if (!a) h += '<div class="empty">Waiting for the Linode.</div>';
+    else a.services.forEach(function (s) {
+      var name = s.unit.replace('.service', '');
+      var right = s.unit.indexOf('.timer') > 0 ? (s.lastRun ? 'ran ' + when(s.lastRun) : 'waiting') : (s.since ? 'up ' + dur((Date.now() - s.since) / 1000) : '') + ' · ' + s.restarts + ' restarts';
+      var sub = s.unit === 'foul-scraper.service' && a.logs ? (a.logs.scraperLastLoop ? 'last loop ' + ago(a.logs.scraperLastLoop) : 'no loop logged in 10 min') + (a.logs.errors10m ? ' · ' + a.logs.errors10m + ' errors' : '')
+        : (s.memMb != null ? s.memMb + ' MB' : '');
+      h += li(s.active === 'active' ? (levelOf('svc_flap:' + s.unit) || '') : 'bad', name, sub, right);
+    });
+    h += '</div>';
+    if (a && a.logs && a.logs.recent && a.logs.recent.length) {
+      h += '<div class="sec">Latest errors</div><div class="list">' + a.logs.recent.map(function (l) { return '<div class="ev"><span>' + esc(l) + '</span></div>'; }).join('') + '</div>';
+    }
+    h += '</div><div>';
+    // Websites
+    h += '<div class="sec">Websites</div><div class="list">';
+    var certs = {}; ((a && a.certs) || []).forEach(function (c) { certs[c.host] = c; });
+    sites.forEach(function (k) {
+      var c = data.checks[k], name = k.slice(5);
+      var host = { 'Lions Live': 'lions.adamforb.es', 'Settlers Live': 'settlers.adamforb.es', 'Hoops Live': 'hoops.adamforb.es', 'Hoops portal': 'portal.adamforb.es', 'Live fouls feed': 'fouls.adamforb.es' }[name];
+      var cert = certs[host], days = cert && cert.validTo ? Math.floor((Date.parse(cert.validTo) - Date.now()) / 86400000) : null;
+      h += li(c.unknown ? 'idle' : c.ok ? (levelOf('cert:' + host) || '') : 'bad', name, host + (days != null ? ' · cert ' + days + ' days' : ''), c.unknown ? "can't check from Cloudflare" : c.ok ? c.ms + ' ms' : (c.error || 'HTTP ' + c.status));
+    });
+    var bs = data.checks.bc_site;
+    if (bs) h += li(bs.ok ? '' : 'bad', 'BasketballConnect website', 'match pages the scraper reads', bs.ok ? bs.ms + ' ms' : (bs.error || 'HTTP ' + bs.status));
+    h += '</div>';
+    // Housekeeping
+    h += '<div class="sec">Housekeeping</div><div class="list">';
+    if (a && a.os) {
+      h += li(a.os.rebootRequired ? 'warn' : '', 'OS updates', a.os.rebootRequired ? 'reboot needed for updates already installed' : 'installed automatically', (a.os.updates == null ? '?' : a.os.updates) + ' pending');
+      h += li('', 'Linode uptime', a.host, dur(a.uptimeSec));
+      h += li('', 'Data sent since boot', 'all network traffic', gb(a.net.rx + a.net.tx));
+      h += li(a.os.sshFails24h > 2000 ? 'warn' : '', 'SSH login attempts blocked', 'last 24 h', String(a.os.sshFails24h));
+      h += li('', 'Log storage', 'systemd journal', a.os.journalUse || '?');
+    } else h += '<div class="empty">Waiting for the Linode.</div>';
+    h += li(data.alertsOn ? '' : 'warn', 'Alerts to your phone', data.alertsOn ? 'ntfy, when a problem starts and clears' : 'not set up (NTFY_TOPIC)', data.alertsOn ? 'on' : 'off');
+    h += '</div>';
+    // Events
+    h += '<div class="sec">Recent events</div><div class="list">';
+    if (!data.events.length) h += '<div class="empty">Nothing yet.</div>';
+    data.events.slice(0, 12).forEach(function (e) {
+      h += '<div class="ev"><span class="t">' + esc(when(e.ts)) + '</span><span class="dot ' + (e.level === 'ok' ? '' : e.level) + '" style="margin-top:4px"></span><span>' + esc(e.message) + '</span></div>';
+    });
+    h += '</div></div></div>';
+
+    h += '<div class="foot"><span>Updated ' + esc(ago(lastOk)) + '</span>' + (data.alertsOn ? '<button id="test">Send test alert</button>' : '') + '</div>';
+    app.innerHTML = h;
+    var t = document.getElementById('test');
+    if (t) t.onclick = function () {
+      t.disabled = true; t.textContent = 'Sending…';
+      fetch('api/test-alert', { method: 'POST', credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (j) { t.textContent = j.sent ? 'Sent' : 'Failed'; }).catch(function () { t.textContent = 'Failed'; });
+    };
+  }
+
+  function load() {
+    fetch('api/status' + (location.search.indexOf('mock') >= 0 ? location.search : ''), { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { if (r.status === 403) throw new Error('Signed out. Reload the page to sign in again.'); if (!r.ok) throw new Error('Dashboard error ' + r.status + '.'); return r.json(); })
+      .then(function (j) { data = j; lastOk = Date.now(); failMsg = ''; render(); })
+      .catch(function (e) { failMsg = e.message || "Can't reach the dashboard."; render(); });
+  }
+  load();
+  // Every refresh reads about 500 database rows, so only refresh while the page is on screen
+  // (a tab left open in the background all day used to cost millions of reads).
+  setInterval(function () { if (!document.hidden) load(); }, 30000);
+  setInterval(function () { if (data) render(); }, 5000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+})();
+</script>
+</body>
+</html>

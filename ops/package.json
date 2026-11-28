@@ -1,0 +1,13 @@
+{
+  "name": "hoops-ops",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute hoops-ops --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute hoops-ops --local --file=schema.sql",
+    "test": "node --test test/rules.test.mjs"
+  },
+  "devDependencies": { "wrangler": "4.40.0" }
+}
