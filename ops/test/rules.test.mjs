@@ -69,3 +69,22 @@ test('no Linode checks on stale agent data', () => {
   const p = evaluate(base({ agent: { ts: now - 600000, data: agent({ disk: { pct: 99 } }).data } }));
   assert.deepEqual(p.map((x) => x.k), ['agent_silent']);
 });
+
+test('scraper quiet is fine during overnight quiet hours', () => {
+  const at = (iso) => evaluate(base({ now: Date.parse(iso), agent: { ts: Date.parse(iso) - 30000, data: agent({ logs: { errors10m: 0, scraperLastLoop: null } }).data } })).map((x) => x.k);
+  assert.deepEqual(at('2026-11-28T17:34:00Z'), []);                 // 4:04am Adelaide (the false alarm)
+  assert.deepEqual(at('2026-11-28T11:31:00Z'), []);                 // 10:01pm
+  assert.deepEqual(at('2026-11-28T19:44:00Z'), []);                 // 6:14am, still waking
+  assert.deepEqual(at('2026-11-28T19:46:00Z'), ['scraper_stalled']); // 6:16am
+  assert.deepEqual(at('2026-11-28T11:29:00Z'), ['scraper_stalled']); // 9:59pm
+});
+
+test('scraper quiet uses the sleep line when the agent reports it', () => {
+  const t = Date.parse('2026-11-28T13:00:00Z'); // 11:30pm Adelaide
+  const run = (logs) => evaluate(base({ now: t, agent: { ts: t - 30000, data: agent({ logs }).data } })).map((x) => x.k);
+  assert.deepEqual(run({ errors10m: 0, scraperLastLoop: null, scraperSleepingSince: t - 3600000 }), []);
+  // awake past 10pm for a late game, then stuck: alert even in the night window
+  assert.deepEqual(run({ errors10m: 0, scraperLastLoop: null, scraperSleepingSince: null }), ['scraper_stalled']);
+  // a sleep line from before the last restart doesn't count
+  assert.deepEqual(evaluate(base({ now: t, agent: { ts: t - 30000, data: agent({ logs: { errors10m: 0, scraperLastLoop: null, scraperSleepingSince: t - 3 * 86400000 } }).data } })).map((x) => x.k), ['scraper_stalled']);
+});

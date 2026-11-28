@@ -147,7 +147,12 @@ function logs() {
     if (s) staleIgnored = s[1].split(/[ ,]+/).filter(Boolean).map(Number);
   }
   const trim = (l) => l.replace(/^\S+\s+\S+\s+/, '').slice(0, 240);
-  return { errors10m: errs.length, recent: errs.slice(-5).reverse().map(trim), scraperLastLoop: lastLoop, liveOfOurs, staleIgnored };
+  // Overnight sleep: the scraper logs "quiet hours: sleeping" once (only when no game is live)
+  // and "quiet hours over" when it wakes, and nothing in between.
+  const q = run('journalctl', ['-u', 'foul-scraper', '--grep', 'quiet hours', '-n', '1', '-o', 'short-iso', '--no-pager', '-q']).trim().split('\n').pop() || '';
+  const qm = q.match(/^(\S+)\s/);
+  const scraperSleepingSince = /quiet hours: sleeping/.test(q) && qm ? (Date.parse(qm[1]) || null) : null;
+  return { errors10m: errs.length, recent: errs.slice(-5).reverse().map(trim), scraperLastLoop: lastLoop, liveOfOurs, staleIgnored, scraperSleepingSince };
 }
 
 // Push alerts: today's start/final notifications ("...: sent 3/3") and subscriber count ("total=N").
